@@ -2,7 +2,7 @@ import os
 import duckdb
 import streamlit as st
 from dotenv import load_dotenv
-from src.db import init_fantasy_tables, save_fantasy_team
+from src.db import init_fantasy_tables, save_fantasy_team, _connect
 
 load_dotenv()
 
@@ -25,7 +25,7 @@ init_fantasy_tables(DB_PATH)
 # ── Load all riders ───────────────────────────────────────────────────────────
 @st.cache_data(ttl=300)
 def get_rider_options():
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = _connect(DB_PATH, read_only=True)
     try:
         df = conn.execute(
             "SELECT rider_url, name, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
