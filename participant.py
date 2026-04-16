@@ -66,7 +66,7 @@ if registration_open:
         team_name = col_b.text_input("Team name", placeholder="e.g. Team Velodutch")
 
         selected_labels = st.multiselect(
-            "Select exactly 15 riders",
+            "Select up to 15 riders",
             options=list(rider_options.keys()),
             max_selections=15,
             placeholder="Type a name to search...",
@@ -81,8 +81,8 @@ if registration_open:
             errors.append("Please enter your name.")
         if not team_name.strip():
             errors.append("Please enter a team name.")
-        if len(selected_labels) != 15:
-            errors.append(f"Select exactly 15 riders (you selected {len(selected_labels)}).")
+        if len(selected_labels) == 0:
+            errors.append("Select at least 1 rider.")
         if not is_registration_open(DB_PATH, selected_race):
             errors.append("Registration has closed for this race.")
 
