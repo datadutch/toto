@@ -92,7 +92,7 @@ if registration_open:
         else:
             urls = [rider_options[lbl] for lbl in selected_labels]
             try:
-                team_id = save_fantasy_team(DB_PATH, manager_name.strip(), team_name.strip(), urls)
+                team_id = save_fantasy_team(DB_PATH, manager_name.strip(), team_name.strip(), urls, selected_race)
                 st.success(f"Team **{team_name.strip()}** registered successfully! 🎉")
                 st.balloons()
             except Exception as exc:

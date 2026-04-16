@@ -372,7 +372,7 @@ with tab_scores:
         st.divider()
         st.markdown("#### Team breakdown")
 
-        teams = load_fantasy_teams(DB_PATH)
+        teams = load_fantasy_teams(DB_PATH, "Giro d'Italia")
         if teams:
             team_labels = {f"{t['team_name']} (by {t['manager_name']})": t["id"] for t in teams}
             chosen_label = st.selectbox("Select a team", list(team_labels.keys()), key="scores_team_select")
@@ -390,10 +390,14 @@ with tab_scores:
 with tab_settings:
     st.subheader("⚙️ Race Settings")
 
+    races_for_settings = load_races(DB_PATH)
+    races_for_settings_names = [r["race_name"] for r in races_for_settings]
+    settings_race = st.selectbox("Select race", races_for_settings_names, key="settings_race_select")
+
     st.markdown("#### Registered Teams")
-    teams_all = load_fantasy_teams(DB_PATH)
+    teams_all = load_fantasy_teams(DB_PATH, settings_race)
     if not teams_all:
-        st.info("No teams registered yet.")
+        st.info("No teams registered yet for this race.")
     else:
         team_labels_all = {f"{t['team_name']} (by {t['manager_name']})": t["id"] for t in teams_all}
         chosen_team = st.selectbox("View a team", list(team_labels_all.keys()), key="settings_team_select")
