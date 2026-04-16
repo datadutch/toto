@@ -102,39 +102,80 @@ def get_rider_options():
     }
 
 rider_options = get_rider_options()
+url_to_label = {v: k for k, v in rider_options.items()}
 
 # ── Team form ─────────────────────────────────────────────────────────────────
 if not registration_open:
     st.stop()
 
 existing_team = load_team_by_account(DB_PATH, account["id"], selected_race)
-
-url_to_label = {v: k for k, v in rider_options.items()}
-prefill_labels = [url_to_label[u] for u in (existing_team["rider_urls"] if existing_team else []) if u in url_to_label]
+prefill_urls = existing_team["rider_urls"] if existing_team else []
 prefill_team_name = existing_team["team_name"] if existing_team else ""
+
+# Initialise session state for rider selection (reset when race changes)
+state_key = f"selected_urls_{account['id']}_{selected_race}"
+if state_key not in st.session_state:
+    st.session_state[state_key] = list(prefill_urls)
+
+selected_urls: list = st.session_state[state_key]
 
 if existing_team:
     st.info(f"✏️ Je hebt al een team voor deze race: **{prefill_team_name}**. Opslaan overschrijft je bestaande selectie.")
 
-with st.form("participant_form"):
-    team_name = st.text_input("Teamnaam", value=prefill_team_name, placeholder="e.g. Team Velodutch")
+# ── Team name ─────────────────────────────────────────────────────────────────
+team_name = st.text_input("Teamnaam", value=prefill_team_name, placeholder="e.g. Team Velodutch", key="team_name_input")
 
-    selected_labels = st.multiselect(
-        "Selecteer renners (max 15)",
-        options=list(rider_options.keys()),
-        default=prefill_labels,
-        max_selections=15,
-        placeholder="Type een naam om te zoeken...",
+st.divider()
+
+# ── Rider search + add ────────────────────────────────────────────────────────
+st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd")
+
+search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam, nationaliteit of team...", key="rider_search")
+
+# Filter rider options by search query, exclude already selected
+available = {
+    label: url
+    for label, url in rider_options.items()
+    if url not in selected_urls and (not search_query or search_query.lower() in label.lower())
+}
+
+if len(selected_urls) >= 15:
+    st.info("Maximum van 15 renners bereikt.")
+elif available:
+    add_label = st.selectbox(
+        "Renner toevoegen",
+        options=list(available.keys()),
+        index=0,
+        key="rider_add_select",
+        label_visibility="collapsed",
     )
+    if st.button("➕ Toevoegen", use_container_width=True, key="btn_add_rider"):
+        st.session_state[state_key].append(available[add_label])
+        st.rerun()
+elif search_query:
+    st.caption("Geen renners gevonden voor deze zoekopdracht.")
 
-    st.caption(f"{len(selected_labels)} / 15 renners geselecteerd")
-    submitted = st.form_submit_button("✅ Team opslaan", use_container_width=True)
+# ── Selected riders list ──────────────────────────────────────────────────────
+if selected_urls:
+    st.markdown("**Geselecteerde renners:**")
+    for i, url in enumerate(selected_urls):
+        label = url_to_label.get(url, url)
+        col_name, col_btn = st.columns([5, 1])
+        col_name.markdown(f"{i + 1}. {label.split(' (')[0]}")
+        if col_btn.button("✖", key=f"remove_{i}", use_container_width=True):
+            st.session_state[state_key].pop(i)
+            st.rerun()
+else:
+    st.caption("Nog geen renners geselecteerd.")
 
-if submitted:
+st.divider()
+
+# ── Save ──────────────────────────────────────────────────────────────────────
+if st.button("✅ Team opslaan", use_container_width=True, type="primary"):
     errors = []
     if not team_name.strip():
         errors.append("Voer een teamnaam in.")
-    if len(selected_labels) == 0:
+    if len(selected_urls) == 0:
         errors.append("Selecteer minimaal 1 renner.")
     if not is_registration_open(DB_PATH, selected_race):
         errors.append("Inschrijving is gesloten voor deze race.")
@@ -143,16 +184,17 @@ if submitted:
         for e in errors:
             st.error(e)
     else:
-        urls = [rider_options[lbl] for lbl in selected_labels]
         try:
             save_fantasy_team(
                 DB_PATH,
                 manager_name=account["name"],
                 team_name=team_name.strip(),
-                rider_urls=urls,
+                rider_urls=selected_urls,
                 race_name=selected_race,
                 account_id=account["id"],
             )
+            # Clear session state so next load pre-fills from DB
+            del st.session_state[state_key]
             if existing_team:
                 st.success(f"Team **{team_name.strip()}** bijgewerkt! 🎉")
             else:
