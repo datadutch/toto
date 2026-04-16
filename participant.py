@@ -12,8 +12,8 @@ if _TOKEN:
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
 
-st.set_page_config(page_title="Giro d'Italia Fantasy", page_icon="🚴", layout="centered")
-st.title("🚴 Giro d'Italia Fantasy")
+st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
+st.title("🚴 Stampers Toto")
 st.markdown("Register your team of 15 riders below.")
 
 if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
