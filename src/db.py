@@ -85,9 +85,10 @@ def init_fantasy_tables(db_path: str) -> None:
         conn.execute(FANTASY_TEAMS_SQL)
         conn.execute(FANTASY_RIDERS_SQL)
         # Migration: add race_name column if it doesn't exist yet
-        cols = [r[0] for r in conn.execute("DESCRIBE fantasy_teams").fetchall()]
-        if "race_name" not in cols:
+        try:
             conn.execute("ALTER TABLE fantasy_teams ADD COLUMN race_name VARCHAR")
+        except Exception:
+            pass  # column already exists
     finally:
         conn.close()
 
