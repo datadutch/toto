@@ -1,3 +1,7 @@
+#specifics
+migrate_to_motherduck.py
+scraper.py
+
 # Virtual environments
 .venv/
 venv/
