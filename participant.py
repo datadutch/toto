@@ -2,7 +2,7 @@ import os
 import duckdb
 import streamlit as st
 from dotenv import load_dotenv
-from src.db import init_fantasy_tables, save_fantasy_team, _connect, load_races, is_registration_open
+from src.db import init_fantasy_tables, save_fantasy_team, load_team_by_manager, _connect, load_races, is_registration_open
 
 load_dotenv()
 
@@ -60,24 +60,33 @@ rider_options = get_rider_options()
 
 # ── Registration form ─────────────────────────────────────────────────────────
 if registration_open:
+    mgr_lookup = st.text_input("Your name", placeholder="e.g. Johan", key="mgr_name_lookup")
+    existing_team = load_team_by_manager(DB_PATH, mgr_lookup.strip(), selected_race) if mgr_lookup.strip() else None
+
+    url_to_label = {v: k for k, v in rider_options.items()}
+    prefill_labels = [url_to_label[u] for u in (existing_team["rider_urls"] if existing_team else []) if u in url_to_label]
+    prefill_team_name = existing_team["team_name"] if existing_team else ""
+
+    if existing_team:
+        st.info(f"✏️ Je hebt al een team geregistreerd: **{prefill_team_name}**. Opslaan overschrijft je bestaande selectie.")
+
     with st.form("participant_form"):
-        col_a, col_b = st.columns(2)
-        manager_name = col_a.text_input("Your name", placeholder="e.g. Johan")
-        team_name = col_b.text_input("Team name", placeholder="e.g. Team Velodutch")
+        team_name = st.text_input("Team name", value=prefill_team_name, placeholder="e.g. Team Velodutch")
 
         selected_labels = st.multiselect(
             "Select up to 15 riders",
             options=list(rider_options.keys()),
+            default=prefill_labels,
             max_selections=15,
             placeholder="Type a name to search...",
         )
 
         st.caption(f"{len(selected_labels)} / 15 riders selected")
-        submitted = st.form_submit_button("✅ Register my team", use_container_width=True)
+        submitted = st.form_submit_button("✅ Save team", use_container_width=True)
 
     if submitted:
         errors = []
-        if not manager_name.strip():
+        if not mgr_lookup.strip():
             errors.append("Please enter your name.")
         if not team_name.strip():
             errors.append("Please enter a team name.")
@@ -92,8 +101,11 @@ if registration_open:
         else:
             urls = [rider_options[lbl] for lbl in selected_labels]
             try:
-                team_id = save_fantasy_team(DB_PATH, manager_name.strip(), team_name.strip(), urls, selected_race)
-                st.success(f"Team **{team_name.strip()}** registered successfully! 🎉")
+                save_fantasy_team(DB_PATH, mgr_lookup.strip(), team_name.strip(), urls, selected_race)
+                if existing_team:
+                    st.success(f"Team **{team_name.strip()}** bijgewerkt! 🎉")
+                else:
+                    st.success(f"Team **{team_name.strip()}** geregistreerd! 🎉")
                 st.balloons()
             except Exception as exc:
                 st.error(f"Could not save your team: {exc}")

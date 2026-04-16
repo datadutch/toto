@@ -96,17 +96,53 @@ def init_fantasy_tables(db_path: str) -> None:
 def save_fantasy_team(db_path: str, manager_name: str, team_name: str, rider_urls: list[str], race_name: str = None) -> int:
     conn = _connect(db_path)
     try:
-        next_id = conn.execute("SELECT coalesce(max(id), 0) + 1 FROM fantasy_teams").fetchone()[0]
-        conn.execute(
-            "INSERT INTO fantasy_teams (id, manager_name, team_name, race_name, created_at) VALUES (?, ?, ?, ?, now())",
-            [next_id, manager_name, team_name, race_name],
-        )
+        # Check if this manager already has a team for this race
+        existing = conn.execute(
+            "SELECT id FROM fantasy_teams WHERE lower(manager_name) = lower(?) AND race_name = ?",
+            [manager_name, race_name],
+        ).fetchone()
+
+        if existing:
+            team_id = existing[0]
+            # Update team name and riders
+            conn.execute(
+                "UPDATE fantasy_teams SET team_name = ? WHERE id = ?",
+                [team_name, team_id],
+            )
+            conn.execute("DELETE FROM fantasy_team_riders WHERE team_id = ?", [team_id])
+        else:
+            team_id = conn.execute("SELECT coalesce(max(id), 0) + 1 FROM fantasy_teams").fetchone()[0]
+            conn.execute(
+                "INSERT INTO fantasy_teams (id, manager_name, team_name, race_name, created_at) VALUES (?, ?, ?, ?, now())",
+                [team_id, manager_name, team_name, race_name],
+            )
+
         for slot, url in enumerate(rider_urls, start=1):
             conn.execute(
                 "INSERT INTO fantasy_team_riders (team_id, slot, rider_url) VALUES (?, ?, ?)",
-                [next_id, slot, url],
+                [team_id, slot, url],
             )
-        return next_id
+        return team_id
+    finally:
+        conn.close()
+
+
+def load_team_by_manager(db_path: str, manager_name: str, race_name: str) -> dict | None:
+    """Return existing team (with rider urls) for a manager+race, or None."""
+    conn = _connect(db_path, read_only=True)
+    try:
+        row = conn.execute(
+            "SELECT id, team_name FROM fantasy_teams WHERE lower(manager_name) = lower(?) AND race_name = ?",
+            [manager_name, race_name],
+        ).fetchone()
+        if not row:
+            return None
+        team_id, team_name = row
+        urls = [r[0] for r in conn.execute(
+            "SELECT rider_url FROM fantasy_team_riders WHERE team_id = ? ORDER BY slot",
+            [team_id],
+        ).fetchall()]
+        return {"id": team_id, "team_name": team_name, "rider_urls": urls}
     finally:
         conn.close()
 
