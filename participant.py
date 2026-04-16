@@ -6,7 +6,7 @@ from src.db import init_fantasy_tables, save_fantasy_team
 
 load_dotenv()
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
 else:
@@ -16,7 +16,7 @@ st.set_page_config(page_title="Giro d'Italia Fantasy", page_icon="🚴", layout=
 st.title("🚴 Giro d'Italia Fantasy")
 st.markdown("Register your team of 15 riders below.")
 
-if not os.path.exists(DB_PATH):
+if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
     st.error("Database not found. Ask the administrator to run the scraper first.")
     st.stop()
 

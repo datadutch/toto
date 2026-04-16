@@ -13,6 +13,9 @@ __pycache__/
 .env
 .env.*
 
+# Streamlit secrets (contains tokens)
+.streamlit/secrets.toml
+
 # Distribution / packaging
 *.egg-info/
 *.egg

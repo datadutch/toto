@@ -12,7 +12,7 @@ from src.db import (
 
 load_dotenv()
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
     _READ_ONLY = False  # MotherDuck does not support read_only attach
@@ -51,7 +51,7 @@ def load_data(name_filter, nationality_filter, team_filter):
 
 
 # ── Check DB exists ──────────────────────────────────────────────────────────
-if not os.path.exists(DB_PATH):
+if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
     st.warning("Database not found. Run `python main.py` first to scrape rider data.")
     st.stop()
 
@@ -112,8 +112,8 @@ with tab_explorer:
     st.divider()
     st.subheader("Rider Detail")
 
-    if not df.empty:
-        rider_names = df["name"].dropna().tolist()
+    rider_names = df["name"].dropna().tolist() if not df.empty else []
+    if rider_names:
         selected = st.selectbox("Select a rider", rider_names)
         if selected:
             row = df[df["name"] == selected].iloc[0]
