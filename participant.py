@@ -1,9 +1,16 @@
 import os
 import duckdb
 import streamlit as st
+from dotenv import load_dotenv
 from src.db import init_fantasy_tables, save_fantasy_team
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
+load_dotenv()
+
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
+if _TOKEN:
+    DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
 
 st.set_page_config(page_title="Giro d'Italia Fantasy", page_icon="🚴", layout="centered")
 st.title("🚴 Giro d'Italia Fantasy")

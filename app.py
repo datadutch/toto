@@ -2,6 +2,7 @@ import os
 import duckdb
 import streamlit as st
 import pandas as pd
+from dotenv import load_dotenv
 from src.db import (
     init_fantasy_tables, save_fantasy_team, load_fantasy_teams, load_fantasy_team_riders,
     init_stages_table, load_stages,
@@ -9,14 +10,22 @@ from src.db import (
     calculate_scores, calculate_stage_breakdown,
 )
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
+load_dotenv()
+
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
+if _TOKEN:
+    DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
+    _READ_ONLY = False  # MotherDuck does not support read_only attach
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
+    _READ_ONLY = True
 
 st.set_page_config(page_title="Cyclist Explorer", page_icon="🚴", layout="wide")
 st.title("🚴 Professional Cyclist Explorer")
 
 
 def get_connection():
-    return duckdb.connect(DB_PATH, read_only=True)
+    return duckdb.connect(DB_PATH, read_only=_READ_ONLY)
 
 
 def load_data(name_filter, nationality_filter, team_filter):

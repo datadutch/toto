@@ -1,5 +1,5 @@
 procyclingstats
 cloudscraper
 duckdb
-pdfplumber
 streamlit
+python-dotenv

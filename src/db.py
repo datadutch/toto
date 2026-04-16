@@ -3,6 +3,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _connect(db_path: str, read_only: bool = False) -> duckdb.DuckDBPyConnection:
+    """Open a DuckDB connection. MotherDuck connections never use read_only."""
+    if db_path.startswith("md:"):
+        return _connect(db_path)
+    return duckdb.connect(db_path, read_only=read_only)
+
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS riders (
     rider_url    VARCHAR PRIMARY KEY,
@@ -34,7 +41,7 @@ ON CONFLICT (rider_url) DO UPDATE SET
 
 def init_db(db_path: str) -> duckdb.DuckDBPyConnection:
     """Open (or create) a DuckDB database and ensure the riders table exists."""
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     conn.execute(CREATE_TABLE_SQL)
     logger.info(f"Database ready at {db_path}")
     return conn
@@ -80,7 +87,7 @@ CREATE TABLE IF NOT EXISTS fantasy_team_riders (
 
 
 def init_fantasy_tables(db_path: str) -> None:
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     try:
         conn.execute(FANTASY_TEAMS_SQL)
         conn.execute(FANTASY_RIDERS_SQL)
@@ -89,7 +96,7 @@ def init_fantasy_tables(db_path: str) -> None:
 
 
 def save_fantasy_team(db_path: str, manager_name: str, team_name: str, rider_urls: list[str]) -> int:
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     try:
         next_id = conn.execute("SELECT coalesce(max(id), 0) + 1 FROM fantasy_teams").fetchone()[0]
         conn.execute(
@@ -107,7 +114,7 @@ def save_fantasy_team(db_path: str, manager_name: str, team_name: str, rider_url
 
 
 def load_fantasy_teams(db_path: str) -> list[dict]:
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
             "SELECT id, manager_name, team_name, created_at FROM fantasy_teams ORDER BY created_at DESC"
@@ -118,7 +125,7 @@ def load_fantasy_teams(db_path: str) -> list[dict]:
 
 
 def load_fantasy_team_riders(db_path: str, team_id: int) -> list[str]:
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
             """SELECT r.name, r.nationality, r.team_name
@@ -175,7 +182,7 @@ GIRO_2025_STAGES = [
 
 
 def init_stages_table(db_path: str) -> None:
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     try:
         conn.execute(CREATE_STAGES_SQL)
         existing = conn.execute(
@@ -191,7 +198,7 @@ def init_stages_table(db_path: str) -> None:
 
 
 def load_stages(db_path: str, race_name: str) -> list[dict]:
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
             "SELECT date, day, stage_name, route, km FROM stages WHERE race_name = ? ORDER BY date",
@@ -219,7 +226,7 @@ CREATE TABLE IF NOT EXISTS stage_results (
 
 
 def init_stage_results_table(db_path: str) -> None:
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     try:
         conn.execute(CREATE_STAGE_RESULTS_SQL)
     finally:
@@ -227,7 +234,7 @@ def init_stage_results_table(db_path: str) -> None:
 
 
 def save_stage_results(db_path: str, race_name: str, stage_name: str, rider_urls: list[str]) -> None:
-    conn = duckdb.connect(db_path)
+    conn = _connect(db_path)
     try:
         conn.execute(
             "DELETE FROM stage_results WHERE race_name = ? AND stage_name = ?",
@@ -243,7 +250,7 @@ def save_stage_results(db_path: str, race_name: str, stage_name: str, rider_urls
 
 
 def load_stage_results(db_path: str, race_name: str, stage_name: str) -> list[dict]:
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
             """SELECT sr.position, r.name, r.nationality, r.team_name
@@ -259,7 +266,7 @@ def load_stage_results(db_path: str, race_name: str, stage_name: str) -> list[di
 
 
 def stages_with_results(db_path: str, race_name: str) -> set[str]:
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
             "SELECT DISTINCT stage_name FROM stage_results WHERE race_name = ?",
@@ -278,7 +285,7 @@ STAGE_POINTS = {1: 25, 2: 20, 3: 17, 4: 15, 5: 13, 6: 10,
 
 def calculate_scores(db_path: str, race_name: str) -> list[dict]:
     """Return per-team, per-stage scores plus totals for all finished stages."""
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         # All stage results for this race
         results_rows = conn.execute(
@@ -334,7 +341,7 @@ def calculate_scores(db_path: str, race_name: str) -> list[dict]:
 
 def calculate_stage_breakdown(db_path: str, race_name: str, team_id: int) -> list[dict]:
     """Return which riders scored points in each finished stage for one team."""
-    conn = duckdb.connect(db_path, read_only=True)
+    conn = _connect(db_path, read_only=True)
     try:
         finished = conn.execute(
             "SELECT DISTINCT stage_name FROM stage_results WHERE race_name = ? ORDER BY stage_name",
