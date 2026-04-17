@@ -205,7 +205,7 @@ def load_fantasy_teams(db_path: str, race_name: str = None) -> list[dict]:
     try:
         if race_name:
             rows = conn.execute(
-                "SELECT id, manager_name, team_name, race_name, created_at FROM fantasy_teams WHERE race_name = ? ORDER BY created_at DESC",
+                "SELECT id, manager_name, team_name, race_name, created_at FROM fantasy_teams WHERE race_name = ? OR race_name IS NULL ORDER BY created_at DESC",
                 [race_name],
             ).fetchall()
         else:

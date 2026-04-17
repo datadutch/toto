@@ -401,8 +401,16 @@ with tab_settings:
     if not teams_all:
         st.info("No teams registered yet for this race.")
     else:
+        # Show summary table of all teams
+        summary_df = pd.DataFrame([
+            {"Team": t["team_name"], "Manager": t["manager_name"], "Registered": t["created_at"]}
+            for t in teams_all
+        ])
+        st.dataframe(summary_df, hide_index=True, width="stretch")
+
+        st.divider()
         team_labels_all = {f"{t['team_name']} (by {t['manager_name']})": t["id"] for t in teams_all}
-        chosen_team = st.selectbox("View a team", list(team_labels_all.keys()), key="settings_team_select")
+        chosen_team = st.selectbox("View a team's riders", list(team_labels_all.keys()), key="settings_team_select")
         if chosen_team:
             chosen_id = team_labels_all[chosen_team]
             team_riders = load_fantasy_team_riders(DB_PATH, chosen_id)
