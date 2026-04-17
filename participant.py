@@ -120,12 +120,18 @@ def get_rider_options():
         ).df()
     finally:
         conn.close()
-    return {
+    labels = {
         f"{row['name']} ({row['nationality'] or '?'}) — {row['team_name'] or '?'}": row["rider_url"]
         for _, row in df.iterrows()
     }
+    # Pre-compute normalized name per url for fast, accent-insensitive search
+    url_to_norm = {
+        row["rider_url"]: _normalize(row["name"])
+        for _, row in df.iterrows()
+    }
+    return labels, url_to_norm
 
-rider_options = get_rider_options()
+rider_options, url_to_normalized_name = get_rider_options()
 url_to_label = {v: k for k, v in rider_options.items()}
 
 # ── Team form ─────────────────────────────────────────────────────────────────
@@ -164,11 +170,13 @@ st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd"
 
 search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key="rider_search")
 
-# Filter rider options by search query (name only), exclude already selected
+# Filter rider options by search query (name only, accent-insensitive), exclude already selected
 available = {
     label: url
     for label, url in rider_options.items()
-    if url not in selected_urls and (not search_query or _normalize(search_query) in _normalize(label.split(" (")[0]))
+    if url not in selected_urls and (
+        not search_query or _normalize(search_query) in url_to_normalized_name.get(url, "")
+    )
 }
 
 if len(selected_urls) >= 15:
