@@ -1,4 +1,5 @@
 ﻿import os
+import unicodedata
 import streamlit as st
 from dotenv import load_dotenv
 from src.db import (
@@ -7,6 +8,11 @@ from src.db import (
     get_account_by_email, create_account,
     _connect, load_races, is_registration_open,
 )
+
+
+def _normalize(text: str) -> str:
+    """Lowercase + strip diacritics so 'pogacar' matches 'Pogačar'."""
+    return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
 load_dotenv()
 
@@ -162,7 +168,7 @@ search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key=
 available = {
     label: url
     for label, url in rider_options.items()
-    if url not in selected_urls and (not search_query or search_query.lower() in label.split(" (")[0].lower())
+    if url not in selected_urls and (not search_query or _normalize(search_query) in _normalize(label.split(" (")[0]))
 }
 
 if len(selected_urls) >= 15:
