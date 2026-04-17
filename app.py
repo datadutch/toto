@@ -118,6 +118,7 @@ def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
         if st.button("🗑️ Uitslag verwijderen", use_container_width=True, key=f"{key_prefix}_delete_{stage_name}", type="secondary"):
             delete_stage_results(DB_PATH, race_name, stage_name)
             st.session_state.pop(sk, None)
+            st.cache_data.clear()
             st.success(f"Uitslag verwijderd voor **{stage_name}**.")
             st.rerun()
 
