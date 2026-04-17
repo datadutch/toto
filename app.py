@@ -294,81 +294,21 @@ with tab_giro:
 
     racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
 
-    result_col, view_col = st.columns([1, 1], gap="large")
+    sub_giro_enter, sub_giro_view = st.tabs(["📝 Enter Results", "📊 View Results"])
 
-    with result_col:
-        st.markdown("**Enter results for a stage**")
+    with sub_giro_enter:
+        if racing_stage_names:
+            giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
+            _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
-        selected_stage = st.selectbox(
-            "Select stage",
-            racing_stage_names,
-            key="result_stage_select",
-        )
-
-        # Pre-fill existing results if any
-        existing = load_stage_results(DB_PATH, "Giro d'Italia", selected_stage)
-        prefill_urls = []
-        if existing:
-            _conn_pre = get_connection()
-            url_map = {
-                row[0]: row[1]
-                for row in _conn_pre.execute("SELECT name, rider_url FROM riders").fetchall()
-            }
-            _conn_pre.close()
-            prefill_urls = [
-                next((url for name, url in url_map.items() if name == r["Rider"]), None)
-                for r in existing
-            ]
-
-        # Build rider options for the multiselect
-        _conn_res = get_connection()
-        res_riders_df = _conn_res.execute(
-            "SELECT rider_url, name, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
-        ).df()
-        _conn_res.close()
-
-        res_rider_options = {
-            f"{row['name']} ({row['nationality'] or '?'}) — {row['team_name'] or '?'}": row["rider_url"]
-            for _, row in res_riders_df.iterrows()
-        }
-        url_to_label = {v: k for k, v in res_rider_options.items()}
-        prefill_labels = [url_to_label[u] for u in prefill_urls if u and u in url_to_label]
-
-        with st.form("stage_results_form"):
-            top15_labels = st.multiselect(
-                "Top 15 finishers (in order, 1st → 15th)",
-                options=list(res_rider_options.keys()),
-                default=prefill_labels,
-                max_selections=15,
-                placeholder="Search and add riders in finishing order...",
-                key="top15_multiselect",
-            )
-            save_results = st.form_submit_button("💾 Save Results", use_container_width=True)
-
-        if save_results:
-            if len(top15_labels) != 15:
-                st.error(f"Select exactly 15 finishers (currently {len(top15_labels)}).")
+    with sub_giro_view:
+        if racing_stage_names:
+            giro_view_stage = st.selectbox("Etappe", racing_stage_names, key="giro_view_stage")
+            giro_results = load_stage_results(DB_PATH, "Giro d'Italia", giro_view_stage)
+            if giro_results:
+                st.dataframe(pd.DataFrame(giro_results), hide_index=True, width="stretch")
             else:
-                urls = [res_rider_options[lbl] for lbl in top15_labels]
-                try:
-                    save_stage_results(DB_PATH, "Giro d'Italia", selected_stage, urls)
-                    st.success(f"Results saved for **{selected_stage}**!")
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Could not save results: {exc}")
-
-    with view_col:
-        st.markdown("**View results for a stage**")
-        view_stage = st.selectbox(
-            "Select stage",
-            racing_stage_names,
-            key="view_stage_select",
-        )
-        results = load_stage_results(DB_PATH, "Giro d'Italia", view_stage)
-        if results:
-            st.dataframe(pd.DataFrame(results), hide_index=True, width="stretch")
-        else:
-            st.info("No results entered yet for this stage.")
+                st.info("Nog geen uitslag ingevoerd.")
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
