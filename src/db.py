@@ -243,8 +243,9 @@ CREATE TABLE IF NOT EXISTS races (
 """
 
 RACE_SEEDS = [
-    ("Giro d'Italia",     "2026-05-07 22:00:00"),
-    ("De Brabantse Pijl", "2026-04-16 22:00:00"),
+    ("Giro d'Italia",      "2026-05-07 22:00:00"),
+    ("De Brabantse Pijl",  "2026-04-16 22:00:00"),
+    ("Amstel Gold Race",   "2026-04-18 22:00:00"),
 ]
 
 
@@ -348,6 +349,10 @@ BRABANTSE_PIJL_STAGES = [
     ("De Brabantse Pijl", "17/04", "Thursday", "Stage 1", "Beersel - Overijse", 163.0),
 ]
 
+AMSTEL_GOLD_STAGES = [
+    ("Amstel Gold Race", "19/04", "Sunday", "Stage 1", "Maastricht - Berg en Terblijt", 257.4),
+]
+
 
 def init_stages_table(db_path: str) -> None:
     conn = _connect(db_path)
@@ -368,6 +373,14 @@ def init_stages_table(db_path: str) -> None:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
                 BRABANTSE_PIJL_STAGES,
+            )
+        existing_agr = conn.execute(
+            "SELECT count(*) FROM stages WHERE race_name = 'Amstel Gold Race'"
+        ).fetchone()[0]
+        if existing_agr == 0:
+            conn.executemany(
+                "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
+                AMSTEL_GOLD_STAGES,
             )
     finally:
         conn.close()

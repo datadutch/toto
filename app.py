@@ -73,7 +73,7 @@ init_accounts_table(DB_PATH)
 
 st.caption(f"Database contains **{total:,}** riders")
 
-tab_explorer, tab_giro, tab_bp, tab_scores, tab_settings = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🏆 Scores", "👥 Teams"])
+tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🌷 Amstel Gold Race", "🏆 Scores", "👥 Teams"])
 
 # ── Tab: Explorer ─────────────────────────────────────────────────────────────
 with tab_explorer:
@@ -346,6 +346,94 @@ with tab_bp:
             from datetime import datetime
             combined = datetime.combine(_new_date, _new_time)
             update_deadline(DB_PATH, "De Brabantse Pijl", combined)
+            st.success(f"Deadline updated to {combined.strftime('%d/%m/%Y %H:%M')}")
+            st.rerun()
+
+# ── Tab: Amstel Gold Race ─────────────────────────────────────────────────────
+with tab_agr:
+    st.subheader("Amstel Gold Race")
+
+    agr_stages = load_stages(DB_PATH, "Amstel Gold Race")
+    agr_stage_names = [s["Stage"] for s in agr_stages]
+
+    sub_agr_enter, sub_agr_view = st.tabs(["📝 Enter Results", "📊 View Results"])
+
+    with sub_agr_enter:
+        if agr_stage_names:
+            agr_selected = st.selectbox("Select stage", agr_stage_names, key="agr_result_stage")
+            agr_existing = load_stage_results(DB_PATH, "Amstel Gold Race", agr_selected)
+
+            _conn_agr = get_connection()
+            agr_riders_df = _conn_agr.execute(
+                "SELECT rider_url, name, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
+            ).df()
+            _conn_agr.close()
+
+            agr_rider_options = {
+                f"{row['name']} ({row['nationality'] or '?'}) — {row['team_name'] or '?'}": row["rider_url"]
+                for _, row in agr_riders_df.iterrows()
+            }
+            agr_url_to_label = {v: k for k, v in agr_rider_options.items()}
+
+            agr_prefill = []
+            if agr_existing:
+                _conn_pre3 = get_connection()
+                url_map3 = {row[0]: row[1] for row in _conn_pre3.execute("SELECT name, rider_url FROM riders").fetchall()}
+                _conn_pre3.close()
+                agr_prefill = [
+                    agr_url_to_label[u] for r in agr_existing
+                    if (u := next((v for n, v in url_map3.items() if n == r["Rider"]), None)) and u in agr_url_to_label
+                ]
+
+            if agr_existing:
+                st.info(f"Results already saved for **{agr_selected}** — editing will overwrite.")
+
+            with st.form("agr_results_form"):
+                st.markdown("Add riders **in finishing order** (1st → 15th).")
+                agr_top15 = st.multiselect(
+                    "Top 15 finishers",
+                    options=list(agr_rider_options.keys()),
+                    default=agr_prefill,
+                    max_selections=15,
+                    placeholder="Type a name to search...",
+                )
+                agr_save = st.form_submit_button("💾 Save Results", use_container_width=True)
+
+            if agr_save:
+                if len(agr_top15) != 15:
+                    st.error(f"Select exactly 15 finishers (currently {len(agr_top15)}).")
+                else:
+                    urls = [agr_rider_options[lbl] for lbl in agr_top15]
+                    try:
+                        save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, urls)
+                        st.success(f"Results saved for **{agr_selected}**!")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Could not save results: {exc}")
+
+    with sub_agr_view:
+        if agr_stage_names:
+            agr_view_stage = st.selectbox("Select stage", agr_stage_names, key="agr_view_stage")
+            agr_results = load_stage_results(DB_PATH, "Amstel Gold Race", agr_view_stage)
+            if agr_results:
+                st.dataframe(pd.DataFrame(agr_results), hide_index=True, width="stretch")
+            else:
+                st.info("No results entered yet.")
+
+    # ── Registration deadline ──────────────────────────────────────────────────
+    st.divider()
+    st.markdown("#### Registration Deadline")
+    _agr_races = load_races(DB_PATH)
+    _agr_race = next((r for r in _agr_races if r["race_name"] == "Amstel Gold Race"), None)
+    if _agr_race:
+        _cur = _agr_race["deadline"]
+        _c1, _c2, _c3 = st.columns([2, 2, 1])
+        _new_date = _c1.date_input("Date", value=_cur.date() if _cur else None, key="agr_dl_date")
+        _new_time = _c2.time_input("Time", value=_cur.time() if _cur else None, key="agr_dl_time")
+        if _c3.button("💾 Save", key="agr_dl_save", use_container_width=True):
+            from datetime import datetime
+            combined = datetime.combine(_new_date, _new_time)
+            update_deadline(DB_PATH, "Amstel Gold Race", combined)
             st.success(f"Deadline updated to {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
 
