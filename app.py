@@ -499,6 +499,14 @@ with tab_riders:
 
     with sub_add:
         st.markdown("Voeg een nieuwe renner toe aan de database.")
+        _tc = get_connection()
+        _team_rows = _tc.execute(
+            "SELECT DISTINCT team_name, team_url FROM riders WHERE team_name IS NOT NULL ORDER BY team_name"
+        ).fetchall()
+        _tc.close()
+        _team_options = {r[0]: r[1] for r in _team_rows}
+        _team_names = list(_team_options.keys())
+
         with st.form("add_rider_form"):
             r_name = st.text_input("Naam *", placeholder="bijv. Tadej Pogačar")
             c1, c2 = st.columns(2)
@@ -507,8 +515,7 @@ with tab_riders:
             c3, c4 = st.columns(2)
             r_height = c3.number_input("Lengte (m)", min_value=1.4, max_value=2.2, value=None, step=0.01, format="%.2f")
             r_weight = c4.number_input("Gewicht (kg)", min_value=40.0, max_value=120.0, value=None, step=0.5, format="%.1f")
-            r_team = st.text_input("Ploeg", placeholder="bijv. UAE Team Emirates")
-            r_team_url = st.text_input("Ploeg URL", placeholder="bijv. team/uae-team-emirates")
+            r_team = st.selectbox("Ploeg", options=["— kies ploeg —"] + _team_names, key="add_rider_team")
             r_url = st.text_input("Renner URL (unieke sleutel) *", placeholder="bijv. rider/tadej-pogacar")
             submitted = st.form_submit_button("💾 Opslaan", use_container_width=True)
 
@@ -516,10 +523,12 @@ with tab_riders:
             if not r_name.strip() or not r_url.strip():
                 st.error("Naam en Renner URL zijn verplicht.")
             else:
+                chosen_team = r_team if r_team != "— kies ploeg —" else None
+                chosen_team_url = _team_options.get(chosen_team) if chosen_team else None
                 try:
                     save_rider(DB_PATH, r_url.strip(), r_name.strip(), r_nat.strip() or None,
                                r_bdate.strip() or None, r_height, r_weight,
-                               r_team.strip() or None, r_team_url.strip() or None)
+                               chosen_team, chosen_team_url)
                     st.cache_data.clear()
                     st.success(f"Renner **{r_name.strip()}** opgeslagen!")
                 except Exception as exc:
