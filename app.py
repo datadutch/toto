@@ -461,42 +461,49 @@ with tab_agr:
 
 # ── Tab: Scores ───────────────────────────────────────────────────────────────
 with tab_scores:
-    st.subheader("🏆 Fantasy Scores — Giro d'Italia")
+    st.subheader("🏆 Scores")
+    st.caption("Puntensysteem: 1e = 15 pts • 2e = 14 pts • ... • 15e = 1 pt")
 
-    scores = calculate_scores(DB_PATH, "Giro d'Italia")
+    _all_races = load_races(DB_PATH)
+    _score_race_tabs = st.tabs([r["race_name"] for r in _all_races])
 
-    if not scores:
-        st.info("No stage results entered yet. Enter results in the 🏁 Giro d'Italia tab first.")
-    else:
-        scores_df = pd.DataFrame(scores)
+    for _score_race_tab, _race in zip(_score_race_tabs, _all_races):
+        _rname = _race["race_name"]
+        with _score_race_tab:
+            scores = calculate_scores(DB_PATH, _rname)
 
-        # Highlight the leader row
-        def highlight_leader(row):
-            if row.name == 0:
-                return ["background-color: #fff3cd; font-weight: bold"] * len(row)
-            return [""] * len(row)
+            if not scores:
+                st.info(f"Nog geen uitslagen ingevoerd voor **{_rname}**.")
+            else:
+                scores_df = pd.DataFrame(scores)
 
-        st.markdown("#### Standings")
-        styled_scores = scores_df.style.apply(highlight_leader, axis=1)
-        st.dataframe(styled_scores, hide_index=True, width="stretch")
+                def _highlight_leader(row):
+                    if row.name == 0:
+                        return ["background-color: #fff3cd; font-weight: bold"] * len(row)
+                    return [""] * len(row)
 
-        # Per-team breakdown
-        st.divider()
-        st.markdown("#### Team breakdown")
+                st.markdown("#### Klassement")
+                st.dataframe(
+                    scores_df.style.apply(_highlight_leader, axis=1),
+                    hide_index=True,
+                    use_container_width=True,
+                )
 
-        teams = load_fantasy_teams(DB_PATH, "Giro d'Italia")
-        if teams:
-            team_labels = {f"{t['team_name']} (by {t['manager_name']})": t["id"] for t in teams}
-            chosen_label = st.selectbox("Select a team", list(team_labels.keys()), key="scores_team_select")
-            if chosen_label:
-                chosen_id = team_labels[chosen_label]
-                breakdown = calculate_stage_breakdown(DB_PATH, "Giro d'Italia", chosen_id)
-                if breakdown:
-                    bd_df = pd.DataFrame(breakdown)
-                    st.dataframe(bd_df, hide_index=True, width="stretch")
-                    st.metric("Total points from shown stages", bd_df["Points"].sum())
-                else:
-                    st.info("None of this team's riders finished in the top 15 of any stage yet.")
+                st.divider()
+                st.markdown("#### Team breakdown")
+                teams = load_fantasy_teams(DB_PATH, _rname)
+                if teams:
+                    team_labels = {f"{t['team_name']} ({t['manager_name']})": t["id"] for t in teams}
+                    chosen_label = st.selectbox("Team", list(team_labels.keys()), key=f"scores_team_{_rname}")
+                    if chosen_label:
+                        chosen_id = team_labels[chosen_label]
+                        breakdown = calculate_stage_breakdown(DB_PATH, _rname, chosen_id)
+                        if breakdown:
+                            bd_df = pd.DataFrame(breakdown)
+                            st.dataframe(bd_df, hide_index=True, use_container_width=True)
+                            st.metric("Totaal punten", int(bd_df["Points"].sum()))
+                        else:
+                            st.info("Geen van de renners uit dit team eindigde in de top 15.")
 
 # ── Tab: Teams ───────────────────────────────────────────────────────────────
 with tab_settings:
