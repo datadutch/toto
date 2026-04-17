@@ -124,6 +124,14 @@ url_to_label = {v: k for k, v in rider_options.items()}
 
 # ── Team form ─────────────────────────────────────────────────────────────────
 if not registration_open:
+    existing_team = load_team_by_account(DB_PATH, account["id"], selected_race)
+    if existing_team:
+        st.subheader(f"Jouw team: {existing_team['team_name']}")
+        for i, url in enumerate(existing_team["rider_urls"]):
+            label = url_to_label.get(url, url)
+            st.markdown(f"{i + 1}. {label.split(' (')[0]}")
+    else:
+        st.info("Je had geen team geregistreerd voor deze race.")
     st.stop()
 
 existing_team = load_team_by_account(DB_PATH, account["id"], selected_race)
