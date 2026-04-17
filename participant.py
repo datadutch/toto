@@ -114,19 +114,20 @@ if race_info["deadline"]:
 def _load_rider_rows():
     conn = _connect(DB_PATH, read_only=True)
     try:
-        df = conn.execute(
+        rows = conn.execute(
             "SELECT rider_url, name, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
-        ).df()
+        ).fetchall()
     finally:
         conn.close()
-    return list(df.itertuples(index=False, name=None))
+    return rows
 
 _rider_rows = _load_rider_rows()  # list of (url, name, nationality, team_name)
 
-# Build lookups fresh every run (no stale cache issues with _normalize)
+# Build lookups fresh every run — never cache derived/normalized data
 rider_options = {}   # label -> url
 url_to_label = {}    # url -> label
 _url_to_norm = {}    # url -> normalized name
+_selected_set = set()  # for fast O(1) lookup later
 for _url, _name, _nat, _team in _rider_rows:
     _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}"
     rider_options[_label] = _url
@@ -166,6 +167,7 @@ st.divider()
 
 # ── Rider search + add ────────────────────────────────────────────────────────
 st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd")
+st.caption(f"_{len(_rider_rows)} renners geladen, {len(_url_to_norm)} genormaliseerd_")
 
 search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key="rider_search")
 
