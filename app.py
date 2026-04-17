@@ -23,7 +23,6 @@ else:
     _READ_ONLY = True
 
 st.set_page_config(page_title="Stampers Toto Administratie", page_icon="🚴", layout="wide")
-st.caption(f"Database contains **{total:,}** riders")
 
 
 def get_connection():
@@ -104,6 +103,8 @@ _col_title.title("🚴 Stampers Toto Administratie")
 if _col_logout.button("Uitloggen", key="admin_logout"):
     st.session_state.admin_account = None
     st.rerun()
+
+st.caption(f"Database contains **{total:,}** riders")
 
 
 tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🌷 Amstel Gold Race", "🏆 Scores", "👥 Teams"])
