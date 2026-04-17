@@ -167,7 +167,6 @@ st.divider()
 
 # ── Rider search + add ────────────────────────────────────────────────────────
 st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd")
-st.caption(f"_{len(_rider_rows)} renners geladen, {len(_url_to_norm)} genormaliseerd_")
 
 search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key="rider_search")
 
@@ -202,7 +201,16 @@ elif available:
         st.session_state[state_key].append(available[add_label])
         st.rerun()
 else:
-    st.caption("Geen renners gevonden voor deze zoekopdracht.")
+    # Check if the rider is missing because already selected
+    _already = [
+        url_to_label.get(url, url).split(" (")[0]
+        for url in selected_urls
+        if _norm_query in _url_to_norm.get(url, "")
+    ]
+    if _already:
+        st.caption(f"✅ Al in je team: **{', '.join(_already)}**")
+    else:
+        st.caption("Geen renners gevonden voor deze zoekopdracht.")
 
 # ── Selected riders list ──────────────────────────────────────────────────────
 if selected_urls:
