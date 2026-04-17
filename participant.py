@@ -156,13 +156,13 @@ st.divider()
 # ── Rider search + add ────────────────────────────────────────────────────────
 st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd")
 
-search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam, nationaliteit of team...", key="rider_search")
+search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key="rider_search")
 
-# Filter rider options by search query, exclude already selected
+# Filter rider options by search query (name only), exclude already selected
 available = {
     label: url
     for label, url in rider_options.items()
-    if url not in selected_urls and (not search_query or search_query.lower() in label.lower())
+    if url not in selected_urls and (not search_query or search_query.lower() in label.split(" (")[0].lower())
 }
 
 if len(selected_urls) >= 15:
