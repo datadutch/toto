@@ -92,10 +92,8 @@ if st.session_state.admin_account is None:
     _acct = get_account_by_email(DB_PATH, _email.strip())
     if not _acct:
         _acct = create_account(DB_PATH, _email.strip(), _email.strip().split("@")[0])
-    if st.button("Doorgaan", use_container_width=True):
-        st.session_state.admin_account = _acct
-        st.rerun()
-    st.stop()
+    st.session_state.admin_account = _acct
+    st.rerun()
 
 _admin = st.session_state.admin_account
 _col_title, _col_logout = st.columns([5, 1])
