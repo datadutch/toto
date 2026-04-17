@@ -10,6 +10,7 @@ from src.db import (
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline,
     init_accounts_table, get_account_by_email, create_account,
+    save_rider, delete_rider,
 )
 
 load_dotenv()
@@ -202,7 +203,7 @@ if _col_logout.button("Uitloggen", key="admin_logout"):
 st.caption(f"Database contains **{total:,}** riders")
 
 
-tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🌷 Amstel Gold Race", "🏆 Scores", "👥 Teams"])
+tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings, tab_riders = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🌷 Amstel Gold Race", "🏆 Scores", "👥 Teams", "➕ Renners"])
 
 # ── Tab: Explorer ─────────────────────────────────────────────────────────────
 with tab_explorer:
@@ -489,4 +490,109 @@ with tab_settings:
                     width="stretch",
                 )
 
+
+# ── Tab: Renners ──────────────────────────────────────────────────────────────
+with tab_riders:
+    st.subheader("Renner toevoegen / bewerken")
+
+    sub_add, sub_edit, sub_delete = st.tabs(["➕ Nieuwe renner", "✏️ Bewerk renner", "🗑️ Verwijder renner"])
+
+    with sub_add:
+        st.markdown("Voeg een nieuwe renner toe aan de database.")
+        with st.form("add_rider_form"):
+            r_name = st.text_input("Naam *", placeholder="bijv. Tadej Pogačar")
+            c1, c2 = st.columns(2)
+            r_nat = c1.text_input("Nationaliteit", placeholder="bijv. SI", max_chars=3)
+            r_bdate = c2.text_input("Geboortedatum", placeholder="bijv. 2000-9-21")
+            c3, c4 = st.columns(2)
+            r_height = c3.number_input("Lengte (m)", min_value=1.4, max_value=2.2, value=None, step=0.01, format="%.2f")
+            r_weight = c4.number_input("Gewicht (kg)", min_value=40.0, max_value=120.0, value=None, step=0.5, format="%.1f")
+            r_team = st.text_input("Ploeg", placeholder="bijv. UAE Team Emirates")
+            r_team_url = st.text_input("Ploeg URL", placeholder="bijv. team/uae-team-emirates")
+            r_url = st.text_input("Renner URL (unieke sleutel) *", placeholder="bijv. rider/tadej-pogacar")
+            submitted = st.form_submit_button("💾 Opslaan", use_container_width=True)
+
+        if submitted:
+            if not r_name.strip() or not r_url.strip():
+                st.error("Naam en Renner URL zijn verplicht.")
+            else:
+                try:
+                    save_rider(DB_PATH, r_url.strip(), r_name.strip(), r_nat.strip() or None,
+                               r_bdate.strip() or None, r_height, r_weight,
+                               r_team.strip() or None, r_team_url.strip() or None)
+                    st.cache_data.clear()
+                    st.success(f"Renner **{r_name.strip()}** opgeslagen!")
+                except Exception as exc:
+                    st.error(f"Fout bij opslaan: {exc}")
+
+    with sub_edit:
+        st.markdown("Zoek een renner en pas gegevens aan.")
+        edit_search = st.text_input("Zoek op naam", key="edit_rider_search", placeholder="bijv. Hermans")
+        if edit_search.strip():
+            _ec = get_connection()
+            edit_rows = _ec.execute(
+                "SELECT rider_url, name, nationality, birthdate, height, weight, team_name, team_url "
+                "FROM riders WHERE name ILIKE ? ORDER BY name LIMIT 20",
+                [f"%{edit_search.strip()}%"],
+            ).fetchall()
+            _ec.close()
+            if not edit_rows:
+                st.info("Geen renners gevonden.")
+            else:
+                edit_labels = {f"{r[1]} ({r[2] or '?'}) — {r[6] or '?'}": r for r in edit_rows}
+                chosen_label = st.selectbox("Selecteer renner", list(edit_labels.keys()), key="edit_rider_select")
+                if chosen_label:
+                    er = edit_labels[chosen_label]
+                    with st.form("edit_rider_form"):
+                        er_name = st.text_input("Naam *", value=er[1] or "")
+                        ec1, ec2 = st.columns(2)
+                        er_nat = ec1.text_input("Nationaliteit", value=er[2] or "", max_chars=3)
+                        er_bdate = ec2.text_input("Geboortedatum", value=er[3] or "")
+                        ec3, ec4 = st.columns(2)
+                        er_height = ec3.number_input("Lengte (m)", min_value=1.4, max_value=2.2, value=float(er[4]) if er[4] else None, step=0.01, format="%.2f")
+                        er_weight = ec4.number_input("Gewicht (kg)", min_value=40.0, max_value=120.0, value=float(er[5]) if er[5] else None, step=0.5, format="%.1f")
+                        er_team = st.text_input("Ploeg", value=er[6] or "")
+                        er_team_url = st.text_input("Ploeg URL", value=er[7] or "")
+                        st.text_input("Renner URL", value=er[0], disabled=True)
+                        edit_submitted = st.form_submit_button("💾 Opslaan", use_container_width=True)
+
+                    if edit_submitted:
+                        if not er_name.strip():
+                            st.error("Naam is verplicht.")
+                        else:
+                            try:
+                                save_rider(DB_PATH, er[0], er_name.strip(), er_nat.strip() or None,
+                                           er_bdate.strip() or None, er_height, er_weight,
+                                           er_team.strip() or None, er_team_url.strip() or None)
+                                st.cache_data.clear()
+                                st.success(f"Renner **{er_name.strip()}** bijgewerkt!")
+                            except Exception as exc:
+                                st.error(f"Fout bij opslaan: {exc}")
+
+    with sub_delete:
+        st.markdown("Verwijder een renner uit de database. Let op: dit kan niet ongedaan worden gemaakt.")
+        del_search = st.text_input("Zoek op naam", key="del_rider_search", placeholder="bijv. Hermans")
+        if del_search.strip():
+            _dc = get_connection()
+            del_rows = _dc.execute(
+                "SELECT rider_url, name, nationality, team_name FROM riders WHERE name ILIKE ? ORDER BY name LIMIT 20",
+                [f"%{del_search.strip()}%"],
+            ).fetchall()
+            _dc.close()
+            if not del_rows:
+                st.info("Geen renners gevonden.")
+            else:
+                del_labels = {f"{r[1]} ({r[2] or '?'}) — {r[3] or '?'}": r[0] for r in del_rows}
+                del_chosen = st.selectbox("Selecteer renner", list(del_labels.keys()), key="del_rider_select")
+                if del_chosen:
+                    del_url = del_labels[del_chosen]
+                    st.warning(f"Je staat op het punt **{del_chosen}** te verwijderen.")
+                    if st.button("🗑️ Definitief verwijderen", type="primary", key="del_rider_confirm"):
+                        try:
+                            delete_rider(DB_PATH, del_url)
+                            st.cache_data.clear()
+                            st.success(f"Renner verwijderd.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Fout bij verwijderen: {exc}")
 

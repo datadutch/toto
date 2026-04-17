@@ -56,6 +56,34 @@ def upsert_rider(conn: duckdb.DuckDBPyConnection, rider: dict) -> None:
     conn.execute(INSERT_RIDER_SQL, values)
 
 
+def save_rider(db_path: str, rider_url: str, name: str, nationality: str, birthdate: str,
+               height: float | None, weight: float | None, team_name: str, team_url: str) -> None:
+    """Upsert a single rider via a standalone db_path connection."""
+    conn = _connect(db_path)
+    try:
+        upsert_rider(conn, {
+            "rider_url": rider_url,
+            "name": name,
+            "nationality": nationality or None,
+            "birthdate": birthdate or None,
+            "height": height,
+            "weight": weight,
+            "team_name": team_name or None,
+            "team_url": team_url or None,
+        })
+    finally:
+        conn.close()
+
+
+def delete_rider(db_path: str, rider_url: str) -> None:
+    """Delete a rider by URL."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(DELETE_RIDER_SQL, [rider_url])
+    finally:
+        conn.close()
+
+
 def rider_count(conn: duckdb.DuckDBPyConnection) -> int:
     return conn.execute("SELECT count(*) FROM riders").fetchone()[0]
 
