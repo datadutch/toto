@@ -189,7 +189,7 @@ free_text = st.text_area(
     key="free_text_riders",
     label_visibility="collapsed",
 )
-if st.button("🔍 Herken renners", key="btn_extract_riders", use_container_width=True):
+if st.button("Herken renners", key="btn_extract_riders", use_container_width=True):
     free_text_input = st.session_state.get("free_text_riders", "").strip()
     if not free_text_input:
         st.warning("Typ eerst één of meer renners in het tekstveld.")
