@@ -205,8 +205,11 @@ _col_title.title("🚴 Stampers Toto Administratie")
 
 # Link to participant app with auto-login
 if _admin and _admin.get("email"):
-    participant_url = f"participant.py?email={_admin['email']}&auto_login=true"
-    _col_middle.markdown(f"[👥 Participant App]({participant_url})")
+    # For multi-page apps: participant is in pages/ directory
+    # For separate apps: set PARTICIPANT_APP_URL env var with full URL
+    participant_base = os.getenv("PARTICIPANT_APP_URL", "participant")
+    participant_url = f"{participant_base}?email={_admin['email']}&auto_login=true"
+    _col_middle.link_button("👥 Participant App", participant_url, type="primary", help="Open participant view (auto-login)", use_container_width=True)
 
 if _col_logout.button("Uitloggen", key="admin_logout"):
     st.session_state.admin_account = None
