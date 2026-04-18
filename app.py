@@ -200,8 +200,14 @@ if st.session_state.admin_account is None:
     st.rerun()
 
 _admin = st.session_state.admin_account
-_col_title, _col_logout = st.columns([5, 1])
+_col_title, _col_middle, _col_logout = st.columns([4, 2, 1])
 _col_title.title("🚴 Stampers Toto Administratie")
+
+# Link to participant app with auto-login
+if _admin and _admin.get("email"):
+    participant_url = f"participant.py?email={_admin['email']}&auto_login=true"
+    _col_middle.markdown(f"[👥 Participant App]({participant_url})")
+
 if _col_logout.button("Uitloggen", key="admin_logout"):
     st.session_state.admin_account = None
     st.rerun()
