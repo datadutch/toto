@@ -9,7 +9,7 @@ from src.db import (
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline,
-    init_accounts_table, get_account_by_email, create_account,
+    init_accounts_table, init_admin_accounts, get_account_by_email, create_account, set_admin_status,
     save_rider, delete_rider,
 )
 
@@ -170,13 +170,16 @@ init_stage_results_table(DB_PATH)
 init_races_table(DB_PATH)
 init_accounts_table(DB_PATH)
 
-# ── Admin login ───────────────────────────────────────────────────────────────
-_ADMIN_EMAILS = [
+# ── One-time migration: promote old ADMIN_EMAILS to is_admin='yes' ────────────
+_ADMIN_EMAILS_OLD = [
     e.strip().lower()
     for e in str(st.secrets.get("ADMIN_EMAILS", "") or os.getenv("ADMIN_EMAILS", "")).split(",")
     if e.strip()
 ]
+if _ADMIN_EMAILS_OLD:
+    init_admin_accounts(DB_PATH, _ADMIN_EMAILS_OLD)
 
+# ── Admin login ───────────────────────────────────────────────────────────────
 if "admin_account" not in st.session_state:
     st.session_state.admin_account = None
 
@@ -186,12 +189,13 @@ if st.session_state.admin_account is None:
     _email = st.text_input("E-mailadres", placeholder="e.g. admin@example.com")
     if not _email.strip():
         st.stop()
-    if _ADMIN_EMAILS and _email.strip().lower() not in _ADMIN_EMAILS:
-        st.error("Geen toegang. Dit e-mailadres is niet geautoriseerd als beheerder.")
-        st.stop()
     _acct = get_account_by_email(DB_PATH, _email.strip())
     if not _acct:
         _acct = create_account(DB_PATH, _email.strip(), _email.strip().split("@")[0])
+    # Check if account has admin privileges
+    if _acct.get("is_admin") != "yes":
+        st.error("Geen toegang. Dit e-mailadres is niet geautoriseerd als beheerder.")
+        st.stop()
     st.session_state.admin_account = _acct
     st.rerun()
 
@@ -462,7 +466,39 @@ with tab_scores:
 # ── Tab: Teams ───────────────────────────────────────────────────────────────
 with tab_settings:
     st.subheader("👥 Teams")
-
+    
+    # ── Admin User Management ─────────────────────────────────────────────
+    if st.session_state.admin_account.get("is_admin") == "yes":
+        st.markdown("---")
+        st.subheader("👑 Admin Gebruikers")
+        
+        # List all accounts with admin status
+        conn = get_connection()
+        all_accounts = conn.execute("SELECT email, name, is_admin FROM accounts ORDER BY is_admin DESC, email").fetchall()
+        conn.close()
+        
+        if all_accounts:
+            df_accounts = pd.DataFrame(all_accounts, columns=["E-mail", "Naam", "Admin"])
+            st.dataframe(df_accounts, hide_index=True, width="stretch")
+            
+            st.markdown("---")
+            st.subheader("Admin status wijzigen")
+            
+            email_to_update = st.text_input("E-mailadres", placeholder="e.g. user@example.com", key="admin_email_update")
+            if email_to_update:
+                new_status = st.radio("Admin status", ["yes", "no"], key="admin_status_choice")
+                if st.button("Opslaan", key="save_admin_status"):
+                    success = set_admin_status(DB_PATH, email_to_update, new_status)
+                    if success:
+                        st.success(f"Admin status voor {email_to_update} gewijzigd naar '{new_status}'")
+                        st.rerun()
+                    else:
+                        st.error(f"Account niet gevonden: {email_to_update}")
+        else:
+            st.info("Geen accounts gevonden.")
+        
+        st.markdown("---")
+    
     races_for_settings = load_races(DB_PATH)
     races_for_settings_names = [r["race_name"] for r in races_for_settings]
     settings_race = st.selectbox("Select race", races_for_settings_names, key="settings_race_select")

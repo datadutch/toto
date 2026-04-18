@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     id         INTEGER,
     email      VARCHAR,
     name       VARCHAR,
+    is_admin   VARCHAR DEFAULT 'no',
     created_at TIMESTAMP DEFAULT now()
 )
 """
@@ -198,6 +199,31 @@ def init_accounts_table(db_path: str) -> None:
     conn = _connect(db_path)
     try:
         conn.execute(CREATE_ACCOUNTS_SQL)
+        # Migration: add is_admin column if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE accounts ADD COLUMN is_admin VARCHAR DEFAULT 'no'")
+        except Exception:
+            pass
+        # Migration: ensure existing accounts have is_admin set
+        try:
+            conn.execute("UPDATE accounts SET is_admin = 'no' WHERE is_admin IS NULL OR is_admin = ''")
+        except Exception:
+            pass
+    finally:
+        conn.close()
+
+
+def init_admin_accounts(db_path: str, admin_emails: list[str]) -> None:
+    """One-time migration: set is_admin='yes' for accounts in the admin_emails list."""
+    if not admin_emails:
+        return
+    conn = _connect(db_path)
+    try:
+        for email in admin_emails:
+            conn.execute(
+                "UPDATE accounts SET is_admin = 'yes' WHERE lower(email) = lower(?)",
+                [email.strip()],
+            )
     finally:
         conn.close()
 
@@ -206,24 +232,37 @@ def get_account_by_email(db_path: str, email: str) -> dict | None:
     conn = _connect(db_path, read_only=True)
     try:
         row = conn.execute(
-            "SELECT id, email, name FROM accounts WHERE lower(email) = lower(?)", [email.strip()]
+            "SELECT id, email, name, is_admin FROM accounts WHERE lower(email) = lower(?)", [email.strip()]
         ).fetchone()
         if not row:
             return None
-        return {"id": row[0], "email": row[1], "name": row[2]}
+        return {"id": row[0], "email": row[1], "name": row[2], "is_admin": row[3] or "no"}
     finally:
         conn.close()
 
 
-def create_account(db_path: str, email: str, name: str) -> dict:
+def create_account(db_path: str, email: str, name: str, is_admin: str = "no") -> dict:
     conn = _connect(db_path)
     try:
         next_id = conn.execute("SELECT coalesce(max(id), 0) + 1 FROM accounts").fetchone()[0]
         conn.execute(
-            "INSERT INTO accounts (id, email, name, created_at) VALUES (?, ?, ?, now())",
-            [next_id, email.lower().strip(), name.strip()],
+            "INSERT INTO accounts (id, email, name, is_admin, created_at) VALUES (?, ?, ?, ?, now())",
+            [next_id, email.lower().strip(), name.strip(), is_admin],
         )
-        return {"id": next_id, "email": email.lower().strip(), "name": name.strip()}
+        return {"id": next_id, "email": email.lower().strip(), "name": name.strip(), "is_admin": is_admin}
+    finally:
+        conn.close()
+
+
+def set_admin_status(db_path: str, email: str, is_admin: str) -> bool:
+    """Set admin status for an account. Returns True if account was found and updated."""
+    conn = _connect(db_path)
+    try:
+        result = conn.execute(
+            "UPDATE accounts SET is_admin = ? WHERE lower(email) = lower(?)",
+            [is_admin, email.strip()],
+        )
+        return result.rowcount > 0
     finally:
         conn.close()
 
