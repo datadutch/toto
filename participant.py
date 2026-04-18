@@ -189,11 +189,14 @@ free_text = st.text_area(
     key="free_text_riders",
     label_visibility="collapsed",
 )
-if free_text.strip():
-    if st.button("🔍 Herken renners", key="btn_extract_riders"):
+if st.button("🔍 Herken renners", key="btn_extract_riders", use_container_width=True):
+    free_text_input = st.session_state.get("free_text_riders", "").strip()
+    if not free_text_input:
+        st.warning("Typ eerst één of meer renners in het tekstvak.")
+    else:
         with st.spinner("Even kijken..."):
             try:
-                extracted = extract_riders_from_text(free_text.strip())
+                extracted = extract_riders_from_text(free_text_input)
             except RuntimeError as e:
                 st.error(str(e))
                 extracted = []
