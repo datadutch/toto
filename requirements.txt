@@ -3,3 +3,4 @@ cloudscraper
 duckdb
 streamlit
 python-dotenv
+mistralai

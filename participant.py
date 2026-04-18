@@ -8,6 +8,7 @@ from src.db import (
     get_account_by_email, create_account,
     _connect, load_races, is_registration_open,
 )
+from src.voice import extract_riders_from_text, match_riders_to_db
 
 
 def _normalize(text: str) -> str:
@@ -165,8 +166,41 @@ team_name = st.text_input("Teamnaam", value=prefill_team_name, placeholder="e.g.
 
 st.divider()
 
-# ── Rider search + add ────────────────────────────────────────────────────────
-st.markdown(f"**Renners selecteren** — {len(selected_urls)} / 15 geselecteerd")
+# ── Free-text rider input ───────────────────────────────────────────────────
+st.markdown("**📝 Typ je renners (vrije tekst)**")
+st.caption("Noem gewoon de namen, in willekeurige volgorde. De app herkent ze automatisch.")
+free_text = st.text_area(
+    "Renners",
+    placeholder="bijv. Pogacar, Vingegaard, Evenepoel, Van der Poel, Van Aert...",
+    height=100,
+    key="free_text_riders",
+    label_visibility="collapsed",
+)
+if free_text.strip():
+    if st.button("🔍 Herken renners", key="btn_extract_riders"):
+        with st.spinner("Even kijken..."):
+            try:
+                extracted = extract_riders_from_text(free_text.strip())
+            except RuntimeError as e:
+                st.error(str(e))
+                extracted = []
+        if extracted:
+            matched_urls, not_found = match_riders_to_db(extracted, DB_PATH)
+            st.session_state[state_key] = matched_urls
+            if not_found:
+                st.warning(
+                    f"{len(not_found)} renner(s) niet gevonden in de database: "
+                    + ", ".join(f"**{n}**" for n in not_found)
+                    + ". Voeg ze hieronder handmatig toe of controleer de spelling."
+                )
+            st.rerun()
+        else:
+            st.warning("Geen renners herkend in de tekst. Controleer de invoer.")
+
+st.divider()
+
+# ── Rider search + add (corrections) ────────────────────────────────────────
+st.markdown(f"**Controleer of pas je selectie aan** — {len(selected_urls)} / 15 geselecteerd")
 
 search_query = st.text_input("🔍 Zoek renner", placeholder="Typ naam...", key="rider_search")
 

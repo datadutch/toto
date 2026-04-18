@@ -1,5 +1,6 @@
 import duckdb
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def upsert_rider(conn: duckdb.DuckDBPyConnection, rider: dict) -> None:
 
 
 def save_rider(db_path: str, rider_url: str, name: str, nationality: str, birthdate: str,
-               height: float | None, weight: float | None, team_name: str, team_url: str) -> None:
+               height: Optional[float], weight: Optional[float], team_name: str, team_url: str) -> None:
     """Upsert a single rider via a standalone db_path connection."""
     conn = _connect(db_path)
     try:
@@ -163,7 +164,7 @@ def save_fantasy_team(db_path: str, manager_name: str, team_name: str, rider_url
         conn.close()
 
 
-def load_team_by_account(db_path: str, account_id: int, race_name: str) -> dict | None:
+def load_team_by_account(db_path: str, account_id: int, race_name: str) -> Optional[dict]:
     """Return existing team for an account+race, or None."""
     conn = _connect(db_path, read_only=True)
     try:
@@ -228,7 +229,7 @@ def init_admin_accounts(db_path: str, admin_emails: list[str]) -> None:
         conn.close()
 
 
-def get_account_by_email(db_path: str, email: str) -> dict | None:
+def get_account_by_email(db_path: str, email: str) -> Optional[dict]:
     conn = _connect(db_path, read_only=True)
     try:
         row = conn.execute(
