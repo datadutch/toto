@@ -1,8 +1,10 @@
 import os
+import re
 import duckdb
 import streamlit as st
 import pandas as pd
 from dotenv import load_dotenv
+from procyclingstats import Stage as PCSStage
 from src.db import (
     init_fantasy_tables, save_fantasy_team, load_fantasy_teams, load_fantasy_team_riders,
     init_stages_table, load_stages,
@@ -46,6 +48,49 @@ def _get_all_rider_rows():
 _POSITIONS_NL = ["1e", "2e", "3e", "4e", "5e", "6e", "7e", "8e", "9e", "10e",
                  "11e", "12e", "13e", "14e", "15e"]
 _NONE = "— niet geselecteerd —"
+
+
+def _get_stage_number_from_name(stage_name: str):
+    """Extract stage number from stage name like 'Stage 1' or 'Stage 1 (ITT)'."""
+    if "rest" in stage_name.lower():
+        return None
+    match = re.search(r'stage\s+(\d+)', stage_name, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    match = re.search(r'(\d+)', stage_name)
+    return match.group(1) if match else None
+
+
+def _race_identifier_from_name(race_name: str) -> str:
+    """Convert race name to ProCyclingStats identifier."""
+    # Giro d'Italia -> giro-d-italia
+    return race_name.lower().replace(" ", "-").replace("'", "")
+
+
+def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
+    """Fetch top 15 riders from ProCyclingStats for a race stage."""
+    race_id = _race_identifier_from_name(race_name)
+    stage_num = _get_stage_number_from_name(stage_name)
+    if not stage_num:
+        return []
+    
+    # Construct PCS URL
+    pcs_url = f"race/{race_id}/{stage_num}/result"
+    
+    try:
+        stage = PCSStage(pcs_url)
+        result = stage.parse()
+        riders = result.get("results", [])
+        
+        top_15 = []
+        for rider in riders:
+            if rider.get("rank") and len(top_15) < 15:
+                top_15.append(rider)
+        return top_15
+    except Exception as e:
+        st.error(f"Failed to fetch from ProCyclingStats: {e}")
+        return []
+
 
 def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
     """Render 15 positional selectboxes for entering stage results."""
@@ -317,7 +362,21 @@ with tab_giro:
 
     with sub_giro_enter:
         if racing_stage_names:
-            giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
+            col_sel, col_fetch = st.columns([3, 1])
+            with col_sel:
+                giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
+            with col_fetch:
+                if st.button("🌐 Fetch from PCS", key="giro_fetch_pcs"):
+                    with st.spinner("Fetching from ProCyclingStats..."):
+                        riders = _fetch_top_15_from_pcs("Giro d'Italia", giro_selected)
+                        if riders:
+                            # Save directly to database
+                            save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, riders)
+                            st.success(f"✓ Fetched and saved {len(riders)} riders for {giro_selected}")
+                            st.rerun()
+                        else:
+                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+            
             _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
     with sub_giro_view:
@@ -357,7 +416,20 @@ with tab_bp:
 
     with sub_bp_enter:
         if bp_stage_names:
-            bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
+            col_sel, col_fetch = st.columns([3, 1])
+            with col_sel:
+                bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
+            with col_fetch:
+                if st.button("🌐 Fetch from PCS", key="bp_fetch_pcs"):
+                    with st.spinner("Fetching from ProCyclingStats..."):
+                        riders = _fetch_top_15_from_pcs("De Brabantse Pijl", bp_selected)
+                        if riders:
+                            save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, riders)
+                            st.success(f"✓ Fetched and saved {len(riders)} riders for {bp_selected}")
+                            st.rerun()
+                        else:
+                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+            
             _render_results_entry("De Brabantse Pijl", bp_selected, "bp")
 
     with sub_bp_view:
@@ -397,7 +469,20 @@ with tab_agr:
 
     with sub_agr_enter:
         if agr_stage_names:
-            agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
+            col_sel, col_fetch = st.columns([3, 1])
+            with col_sel:
+                agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
+            with col_fetch:
+                if st.button("🌐 Fetch from PCS", key="agr_fetch_pcs"):
+                    with st.spinner("Fetching from ProCyclingStats..."):
+                        riders = _fetch_top_15_from_pcs("Amstel Gold Race", agr_selected)
+                        if riders:
+                            save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, riders)
+                            st.success(f"✓ Fetched and saved {len(riders)} riders for {agr_selected}")
+                            st.rerun()
+                        else:
+                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+            
             _render_results_entry("Amstel Gold Race", agr_selected, "agr")
 
     with sub_agr_view:
