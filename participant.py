@@ -17,7 +17,10 @@ def _normalize(text: str) -> str:
 
 load_dotenv()
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+try:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+except Exception:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
 else:
