@@ -594,8 +594,11 @@ with tab_settings:
         st.markdown("---")
     
     races_for_settings = load_races(DB_PATH)
+    # Sort by closest deadline (nearest date first)
+    from datetime import datetime
+    races_for_settings.sort(key=lambda r: abs((r["deadline"] - datetime.now()).total_seconds()) if r["deadline"] else float('inf'))
     races_for_settings_names = [r["race_name"] for r in races_for_settings]
-    settings_race = st.selectbox("Select race", races_for_settings_names, key="settings_race_select")
+    settings_race = st.selectbox("Select race", races_for_settings_names, index=0, key="settings_race_select")
 
     st.markdown("#### Registered Teams")
     teams_all = load_fantasy_teams(DB_PATH, settings_race)
