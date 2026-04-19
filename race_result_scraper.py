@@ -12,6 +12,7 @@ Or with command line argument:
 """
 
 import sys
+import cloudscraper
 from procyclingstats import Stage
 
 
@@ -44,7 +45,19 @@ def extract_path_from_url(url: str) -> str:
 
 def get_top_15_riders(result_path: str) -> list[dict]:
     """Fetch race results and return the top 15 riders."""
-    stage = Stage(result_path)
+    # Construct full URL
+    if not result_path.startswith("http"):
+        full_url = f"https://www.procyclingstats.com/{result_path}"
+    else:
+        full_url = result_path
+    
+    # Use cloudscraper to bypass Cloudflare protection
+    scraper = cloudscraper.create_scraper()
+    response = scraper.get(full_url)
+    html = response.text
+    
+    # Pass HTML to Stage class
+    stage = Stage(result_path, html=html, update_html=False)
     result = stage.parse()
     
     # Get results from the parsed data
