@@ -17,7 +17,10 @@ from src.db import (
 
 load_dotenv()
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+try:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+except Exception:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
     _READ_ONLY = False  # MotherDuck does not support read_only attach
@@ -190,9 +193,19 @@ init_races_table(DB_PATH)
 init_accounts_table(DB_PATH)
 
 # ── One-time migration: promote old ADMIN_EMAILS to is_admin='yes' ────────────
+_ADMIN_EMAILS_OLD = []
+try:
+    # Try to get from secrets (Streamlit Cloud)
+    admin_emails_str = st.secrets.get("ADMIN_EMAILS", "")
+except Exception:
+    admin_emails_str = ""
+# Fall back to environment variable
+if not admin_emails_str:
+    admin_emails_str = os.getenv("ADMIN_EMAILS", "")
+
 _ADMIN_EMAILS_OLD = [
     e.strip().lower()
-    for e in str(st.secrets.get("ADMIN_EMAILS", "") or os.getenv("ADMIN_EMAILS", "")).split(",")
+    for e in str(admin_emails_str).split(",")
     if e.strip()
 ]
 if _ADMIN_EMAILS_OLD:
