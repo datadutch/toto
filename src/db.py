@@ -401,7 +401,8 @@ CREATE TABLE IF NOT EXISTS stages (
     day        VARCHAR,
     stage_name VARCHAR NOT NULL,
     route      VARCHAR,
-    km         FLOAT
+    km         FLOAT,
+    pcs_url    VARCHAR
 )
 """
 
@@ -445,6 +446,11 @@ def init_stages_table(db_path: str) -> None:
     conn = _connect(db_path)
     try:
         conn.execute(CREATE_STAGES_SQL)
+        # Migration: add pcs_url column if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE stages ADD COLUMN pcs_url VARCHAR")
+        except Exception:
+            pass
         existing_giro = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Giro d''Italia'"
         ).fetchone()[0]
@@ -477,13 +483,25 @@ def load_stages(db_path: str, race_name: str) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
-            "SELECT date, day, stage_name, route, km FROM stages WHERE race_name = ? ORDER BY date",
+            "SELECT date, day, stage_name, route, km, pcs_url FROM stages WHERE race_name = ? ORDER BY date",
             [race_name],
         ).fetchall()
         return [
-            {"Date": r[0], "Day": r[1] or "", "Stage": r[2], "Route": r[3] or "", "KM": r[4]}
+            {"Date": r[0], "Day": r[1] or "", "Stage": r[2], "Route": r[3] or "", "KM": r[4], "pcs_url": r[5]}
             for r in rows
         ]
+    finally:
+        conn.close()
+
+
+def update_stage_pcs_url(db_path: str, race_name: str, stage_name: str, pcs_url: str) -> None:
+    """Set or update the ProCyclingStats result URL for a specific stage."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE stages SET pcs_url = ? WHERE race_name = ? AND stage_name = ?",
+            [pcs_url.strip() or None, race_name, stage_name],
+        )
     finally:
         conn.close()
 

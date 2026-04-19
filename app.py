@@ -1,5 +1,4 @@
 import os
-import re
 import duckdb
 import streamlit as st
 import pandas as pd
@@ -13,7 +12,7 @@ from src.db import (
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline,
     init_accounts_table, init_admin_accounts, get_account_by_email, create_account, set_admin_status,
-    save_rider, delete_rider,
+    save_rider, delete_rider, update_stage_pcs_url,
 )
 
 load_dotenv()
@@ -46,57 +45,25 @@ def _get_all_rider_rows():
 
 
 # ── Shared: positional results entry UI ─────────────────────────────────────
+import datetime
+
 _POSITIONS_NL = ["1e", "2e", "3e", "4e", "5e", "6e", "7e", "8e", "9e", "10e",
                  "11e", "12e", "13e", "14e", "15e"]
 _NONE = "— niet geselecteerd —"
 
 
-def _get_stage_number_from_name(stage_name: str):
-    """Extract stage number from stage name like 'Stage 1' or 'Stage 1 (ITT)'."""
-    if "rest" in stage_name.lower():
-        return None
-    match = re.search(r'stage\s+(\d+)', stage_name, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    match = re.search(r'(\d+)', stage_name)
-    return match.group(1) if match else None
-
-
-def _race_identifier_from_name(race_name: str) -> str:
-    """Convert race name to ProCyclingStats identifier."""
-    # Giro d'Italia -> giro-d-italia
-    return race_name.lower().replace(" ", "-").replace("'", "")
-
-
-def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
-    """Fetch top 15 riders from ProCyclingStats for a race stage."""
-    race_id = _race_identifier_from_name(race_name)
-    stage_num = _get_stage_number_from_name(stage_name)
-    if not stage_num:
-        return []
-    
-    # Construct PCS URL
-    pcs_url = f"https://www.procyclingstats.com/race/{race_id}/{stage_num}/result"
-    
+def _fetch_top_15_from_pcs(pcs_url: str) -> list[dict]:
+    """Fetch top 15 riders from a given ProCyclingStats result URL."""
     try:
-        # Use cloudscraper to bypass Cloudflare protection
         scraper = cloudscraper.create_scraper()
-        response = scraper.get(pcs_url)
-        html = response.text
-        
-        # Pass HTML to procyclingstats Stage class
-        stage = PCSStage(pcs_url, html=html, update_html=False)
-        result = stage.parse()
-        riders = result.get("results", [])
-        
-        top_15 = []
-        for rider in riders:
-            if rider.get("rank") and len(top_15) < 15:
-                top_15.append(rider)
-        return top_15
+        response = scraper.get(pcs_url, timeout=15)
+        stage = PCSStage(pcs_url, html=response.text, update_html=False)
+        riders = stage.results()
+        return [r for r in riders if r.get("rank") and r["rank"] <= 15][:15]
     except Exception as e:
-        st.error(f"Failed to fetch from ProCyclingStats: {e}")
+        st.error(f"Ophalen van ProCyclingStats mislukt: {e}")
         return []
+
 
 
 def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
@@ -364,26 +331,34 @@ with tab_giro:
     st.subheader("Stage Results")
 
     racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
+    _stage_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in stages}
 
     sub_giro_enter, sub_giro_view = st.tabs(["📝 Enter Results", "📊 View Results"])
 
     with sub_giro_enter:
         if racing_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
-            with col_fetch:
+            giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
+            cur_url = _stage_pcs_urls.get(giro_selected) or ""
+            col_url, col_save = st.columns([5, 1])
+            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/giro-d-italia/2026/stage-1/result", key=f"giro_pcs_url_{giro_selected}")
+            if col_save.button("💾", key=f"giro_save_url_{giro_selected}", help="URL opslaan", use_container_width=True):
+                update_stage_pcs_url(DB_PATH, "Giro d'Italia", giro_selected, new_url)
+                st.success("URL opgeslagen")
+                st.rerun()
+            if new_url.strip():
                 if st.button("🌐 Fetch from PCS", key="giro_fetch_pcs"):
                     with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs("Giro d'Italia", giro_selected)
+                        riders = _fetch_top_15_from_pcs(new_url.strip())
                         if riders:
-                            # Save directly to database
-                            save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {giro_selected}")
+                            rider_urls = [r["rider_url"] for r in riders]
+                            save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, rider_urls)
+                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {giro_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
-            
+                            st.warning("Geen resultaten gevonden. Controleer de URL.")
+            else:
+                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
+
             _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
     with sub_giro_view:
@@ -423,20 +398,29 @@ with tab_bp:
 
     with sub_bp_enter:
         if bp_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
-            with col_fetch:
+            _bp_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in bp_stages}
+            bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
+            cur_url = _bp_pcs_urls.get(bp_selected) or ""
+            col_url, col_save = st.columns([5, 1])
+            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/de-brabantse-pijl/2026/result", key=f"bp_pcs_url_{bp_selected}")
+            if col_save.button("💾", key=f"bp_save_url_{bp_selected}", help="URL opslaan", use_container_width=True):
+                update_stage_pcs_url(DB_PATH, "De Brabantse Pijl", bp_selected, new_url)
+                st.success("URL opgeslagen")
+                st.rerun()
+            if new_url.strip():
                 if st.button("🌐 Fetch from PCS", key="bp_fetch_pcs"):
                     with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs("De Brabantse Pijl", bp_selected)
+                        riders = _fetch_top_15_from_pcs(new_url.strip())
                         if riders:
-                            save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {bp_selected}")
+                            rider_urls = [r["rider_url"] for r in riders]
+                            save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, rider_urls)
+                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {bp_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
-            
+                            st.warning("Geen resultaten gevonden. Controleer de URL.")
+            else:
+                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
+
             _render_results_entry("De Brabantse Pijl", bp_selected, "bp")
 
     with sub_bp_view:
@@ -476,20 +460,29 @@ with tab_agr:
 
     with sub_agr_enter:
         if agr_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
-            with col_fetch:
+            _agr_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in agr_stages}
+            agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
+            cur_url = _agr_pcs_urls.get(agr_selected) or ""
+            col_url, col_save = st.columns([5, 1])
+            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/amstel-gold-race/2026/result", key=f"agr_pcs_url_{agr_selected}")
+            if col_save.button("💾", key=f"agr_save_url_{agr_selected}", help="URL opslaan", use_container_width=True):
+                update_stage_pcs_url(DB_PATH, "Amstel Gold Race", agr_selected, new_url)
+                st.success("URL opgeslagen")
+                st.rerun()
+            if new_url.strip():
                 if st.button("🌐 Fetch from PCS", key="agr_fetch_pcs"):
                     with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs("Amstel Gold Race", agr_selected)
+                        riders = _fetch_top_15_from_pcs(new_url.strip())
                         if riders:
-                            save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {agr_selected}")
+                            rider_urls = [r["rider_url"] for r in riders]
+                            save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, rider_urls)
+                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {agr_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
-            
+                            st.warning("Geen resultaten gevonden. Controleer de URL.")
+            else:
+                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
+
             _render_results_entry("Amstel Gold Race", agr_selected, "agr")
 
     with sub_agr_view:
