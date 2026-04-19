@@ -10,7 +10,7 @@ from src.db import (
     init_stages_table, load_stages,
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
-    init_races_table, load_races, update_deadline,
+    init_races_table, load_races, update_deadline, update_pcs_url,
     init_accounts_table, init_admin_accounts, get_account_by_email, create_account, set_admin_status,
     save_rider, delete_rider, update_stage_pcs_url,
 )
