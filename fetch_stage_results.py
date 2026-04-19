@@ -16,6 +16,7 @@ import os
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 import duckdb
+import cloudscraper
 from procyclingstats import Stage
 
 # Import DB functions
@@ -112,7 +113,16 @@ def construct_result_url(race_identifier: str, stage_num: str, is_one_day_race: 
 
 def fetch_top_15_riders(url: str) -> List[Dict]:
     """Fetch top 15 riders from a ProCyclingStats result URL."""
-    stage = Stage(url)
+    # Use cloudscraper to bypass Cloudflare protection
+    if not url.startswith("http"):
+        url = f"https://www.procyclingstats.com/{url}"
+    
+    scraper = cloudscraper.create_scraper()
+    response = scraper.get(url)
+    html = response.text
+    
+    # Pass HTML to Stage class
+    stage = Stage(url, html=html, update_html=False)
     result = stage.parse()
     riders = result.get("results", [])
     

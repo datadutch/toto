@@ -3,6 +3,7 @@ import re
 import duckdb
 import streamlit as st
 import pandas as pd
+import cloudscraper
 from dotenv import load_dotenv
 from procyclingstats import Stage as PCSStage
 from src.db import (
@@ -75,10 +76,16 @@ def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
         return []
     
     # Construct PCS URL
-    pcs_url = f"race/{race_id}/{stage_num}/result"
+    pcs_url = f"https://www.procyclingstats.com/race/{race_id}/{stage_num}/result"
     
     try:
-        stage = PCSStage(pcs_url)
+        # Use cloudscraper to bypass Cloudflare protection
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(pcs_url)
+        html = response.text
+        
+        # Pass HTML to procyclingstats Stage class
+        stage = PCSStage(pcs_url, html=html, update_html=False)
         result = stage.parse()
         riders = result.get("results", [])
         
@@ -594,8 +601,11 @@ with tab_settings:
         st.markdown("---")
     
     races_for_settings = load_races(DB_PATH)
+    # Sort by closest deadline (nearest date first)
+    from datetime import datetime
+    races_for_settings.sort(key=lambda r: abs((r["deadline"] - datetime.now()).total_seconds()) if r["deadline"] else float('inf'))
     races_for_settings_names = [r["race_name"] for r in races_for_settings]
-    settings_race = st.selectbox("Select race", races_for_settings_names, key="settings_race_select")
+    settings_race = st.selectbox("Select race", races_for_settings_names, index=0, key="settings_race_select")
 
     st.markdown("#### Registered Teams")
     teams_all = load_fantasy_teams(DB_PATH, settings_race)

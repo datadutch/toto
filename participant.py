@@ -44,16 +44,16 @@ if "account" not in st.session_state:
     st.session_state.account = None
 
 # ── Auto-login via URL parameter (from admin app) ──────────────────────────────
-query_params = st.experimental_get_query_params()
-auto_login_email = query_params.get("email", [None])[0]
-auto_login_flag = query_params.get("auto_login", [None])[0]
+query_params = st.query_params
+auto_login_email = query_params.get("email")
+auto_login_flag = query_params.get("auto_login")
 
 if auto_login_email and auto_login_flag == "true" and st.session_state.account is None:
     account = get_account_by_email(DB_PATH, auto_login_email)
     if account:
         st.session_state.account = account
         # Clear the query params from the URL for clean display
-        st.experimental_set_query_params(**{})
+        st.query_params.clear()
         st.rerun()
 
 # ── Auto-login via Google (Streamlit Cloud OAuth), else manual email ──────────
@@ -189,11 +189,14 @@ free_text = st.text_area(
     key="free_text_riders",
     label_visibility="collapsed",
 )
-if free_text.strip():
-    if st.button("🔍 Herken renners", key="btn_extract_riders"):
+if st.button("Herken renners", key="btn_extract_riders", use_container_width=True):
+    free_text_input = st.session_state.get("free_text_riders", "").strip()
+    if not free_text_input:
+        st.warning("Typ eerst één of meer renners in het tekstveld.")
+    else:
         with st.spinner("Even kijken..."):
             try:
-                extracted = extract_riders_from_text(free_text.strip())
+                extracted = extract_riders_from_text(free_text_input)
             except RuntimeError as e:
                 st.error(str(e))
                 extracted = []
