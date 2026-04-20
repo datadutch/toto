@@ -14,7 +14,7 @@ from src.db import (
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline, update_pcs_url,
     init_accounts_table, init_admin_accounts, get_account_by_email, create_account, set_admin_status,
-    save_rider, delete_rider, update_stage_pcs_url,
+    save_rider, delete_rider,
 )
 
 load_dotenv()
@@ -342,11 +342,9 @@ if _col_logout.button(t("logout"), key="admin_logout"):
 st.caption(f"{t('database_riders')} **{total:,}** {t('database_riders_suffix')}")
 
 
-tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings, tab_riders = st.tabs([
+tab_explorer, tab_giro, tab_scores, tab_settings, tab_riders = st.tabs([
     f"🔍 {t('tab_explorer')}", 
     f"🏁 {t('tab_giro')}", 
-    f"🚵 {t('tab_brabantse')}", 
-    f"🌷 {t('tab_amstel')}", 
     f"🏆 {t('tab_scores')}", 
     f"👥 {t('tab_teams')}", 
     f"➕ {t('tab_riders')}"
@@ -444,7 +442,6 @@ with tab_giro:
     st.subheader(t("stage_results"))
 
     racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
-    _stage_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in stages}
 
     sub_giro_enter, sub_giro_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
 
@@ -465,28 +462,6 @@ with tab_giro:
                         else:
                             st.warning(t("no_results_fetched"))
             
-            giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
-            cur_url = _stage_pcs_urls.get(giro_selected) or ""
-            col_url, col_save = st.columns([5, 1])
-            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/giro-d-italia/2026/stage-1/result", key=f"giro_pcs_url_{giro_selected}")
-            if col_save.button("💾", key=f"giro_save_url_{giro_selected}", help="URL opslaan", use_container_width=True):
-                update_stage_pcs_url(DB_PATH, "Giro d'Italia", giro_selected, new_url)
-                st.success("URL opgeslagen")
-                st.rerun()
-            if new_url.strip():
-                if st.button("🌐 Fetch from PCS", key="giro_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs(new_url.strip())
-                        if riders:
-                            rider_urls = [r["rider_url"] for r in riders]
-                            save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, rider_urls)
-                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {giro_selected}")
-                            st.rerun()
-                        else:
-                            st.warning("Geen resultaten gevonden. Controleer de URL.")
-            else:
-                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
-
             _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
     with sub_giro_view:
@@ -515,157 +490,9 @@ with tab_giro:
             st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
 
-# ── Tab: De Brabantse Pijl ───────────────────────────────────────────────────
-with tab_bp:
-    st.subheader(t("brabantse_pijl"))
 
-    bp_stages = load_stages(DB_PATH, "De Brabantse Pijl")
-    bp_stage_names = [s["Stage"] for s in bp_stages]
 
-    sub_bp_enter, sub_bp_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
 
-    with sub_bp_enter:
-        if bp_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
-            with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="bp_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("De Brabantse Pijl", bp_selected)
-                        if riders:
-                            save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {bp_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
-            
-            _bp_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in bp_stages}
-            bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
-            cur_url = _bp_pcs_urls.get(bp_selected) or ""
-            col_url, col_save = st.columns([5, 1])
-            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/de-brabantse-pijl/2026/result", key=f"bp_pcs_url_{bp_selected}")
-            if col_save.button("💾", key=f"bp_save_url_{bp_selected}", help="URL opslaan", use_container_width=True):
-                update_stage_pcs_url(DB_PATH, "De Brabantse Pijl", bp_selected, new_url)
-                st.success("URL opgeslagen")
-                st.rerun()
-            if new_url.strip():
-                if st.button("🌐 Fetch from PCS", key="bp_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs(new_url.strip())
-                        if riders:
-                            rider_urls = [r["rider_url"] for r in riders]
-                            save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, rider_urls)
-                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {bp_selected}")
-                            st.rerun()
-                        else:
-                            st.warning("Geen resultaten gevonden. Controleer de URL.")
-            else:
-                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
-
-            _render_results_entry("De Brabantse Pijl", bp_selected, "bp")
-
-    with sub_bp_view:
-        if bp_stage_names:
-            bp_view_stage = st.selectbox("Etappe", bp_stage_names, key="bp_view_stage")
-            bp_results = load_stage_results(DB_PATH, "De Brabantse Pijl", bp_view_stage)
-            if bp_results:
-                st.dataframe(pd.DataFrame(bp_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
-
-    # ── Registration deadline ──────────────────────────────────────────────────
-    st.divider()
-    st.markdown(f"#### {t('registration_deadline')}")
-    _bp_races = load_races(DB_PATH)
-    _bp_race = next((r for r in _bp_races if r["race_name"] == "De Brabantse Pijl"), None)
-    if _bp_race:
-        _cur = _bp_race["deadline"]
-        _c1, _c2, _c3 = st.columns([2, 2, 1])
-        _new_date = _c1.date_input(t("date"), value=_cur.date() if _cur else None, key="bp_dl_date")
-        _new_time = _c2.time_input(t("time"), value=_cur.time() if _cur else None, key="bp_dl_time")
-        if _c3.button(f"💾 {t('save')}", key="bp_dl_save", width="stretch"):
-            from datetime import datetime
-            combined = datetime.combine(_new_date, _new_time)
-            update_deadline(DB_PATH, "De Brabantse Pijl", combined)
-            st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
-            st.rerun()
-
-# ── Tab: Amstel Gold Race ─────────────────────────────────────────────────────
-with tab_agr:
-    st.subheader(t("amstel_gold_race"))
-
-    agr_stages = load_stages(DB_PATH, "Amstel Gold Race")
-    agr_stage_names = [s["Stage"] for s in agr_stages]
-
-    sub_agr_enter, sub_agr_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
-
-    with sub_agr_enter:
-        if agr_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
-            with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="agr_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("Amstel Gold Race", agr_selected)
-                        if riders:
-                            save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {agr_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
-            
-            _agr_pcs_urls = {s["Stage"]: s.get("pcs_url") for s in agr_stages}
-            agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
-            cur_url = _agr_pcs_urls.get(agr_selected) or ""
-            col_url, col_save = st.columns([5, 1])
-            new_url = col_url.text_input("PCS resultaat-URL", value=cur_url, placeholder="https://www.procyclingstats.com/race/amstel-gold-race/2026/result", key=f"agr_pcs_url_{agr_selected}")
-            if col_save.button("💾", key=f"agr_save_url_{agr_selected}", help="URL opslaan", use_container_width=True):
-                update_stage_pcs_url(DB_PATH, "Amstel Gold Race", agr_selected, new_url)
-                st.success("URL opgeslagen")
-                st.rerun()
-            if new_url.strip():
-                if st.button("🌐 Fetch from PCS", key="agr_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
-                        riders = _fetch_top_15_from_pcs(new_url.strip())
-                        if riders:
-                            rider_urls = [r["rider_url"] for r in riders]
-                            save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, rider_urls)
-                            st.success(f"✓ {len(rider_urls)} renners opgeslagen voor {agr_selected}")
-                            st.rerun()
-                        else:
-                            st.warning("Geen resultaten gevonden. Controleer de URL.")
-            else:
-                st.caption("Stel eerst een PCS URL in voor deze etappe om automatisch op te halen.")
-
-            _render_results_entry("Amstel Gold Race", agr_selected, "agr")
-
-    with sub_agr_view:
-        if agr_stage_names:
-            agr_view_stage = st.selectbox("Etappe", agr_stage_names, key="agr_view_stage")
-            agr_results = load_stage_results(DB_PATH, "Amstel Gold Race", agr_view_stage)
-            if agr_results:
-                st.dataframe(pd.DataFrame(agr_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
-
-    # ── Registration deadline ──────────────────────────────────────────────────
-    st.divider()
-    st.markdown(f"#### {t('registration_deadline')}")
-    _agr_races = load_races(DB_PATH)
-    _agr_race = next((r for r in _agr_races if r["race_name"] == "Amstel Gold Race"), None)
-    if _agr_race:
-        _cur = _agr_race["deadline"]
-        _c1, _c2, _c3 = st.columns([2, 2, 1])
-        _new_date = _c1.date_input(t("date"), value=_cur.date() if _cur else None, key="agr_dl_date")
-        _new_time = _c2.time_input(t("time"), value=_cur.time() if _cur else None, key="agr_dl_time")
-        if _c3.button(f"💾 {t('save')}", key="agr_dl_save", width="stretch"):
-            from datetime import datetime
-            combined = datetime.combine(_new_date, _new_time)
-            update_deadline(DB_PATH, "Amstel Gold Race", combined)
-            st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
-            st.rerun()
 
 # ── Tab: Scores ───────────────────────────────────────────────────────────────
 with tab_scores:
