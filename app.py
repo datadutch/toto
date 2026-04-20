@@ -298,37 +298,32 @@ _col_title, _col_middle, _col_logout = st.columns([4, 2, 1])
 _col_title.title(f"🚴 {t('title')}")
 
 # Link to participant app with auto-login
+import os
+import urllib.parse
+import streamlit as st
+
 if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
 
-    # Fallback als ENV leeg is
     if not participant_url:
         participant_url = "https://stamperstotogalore.streamlit.app"
 
-    separator = "&" if "?" in participant_url else "?"
-    full_url = (
-        f"{participant_url}{separator}"
-        f"email={_admin['email']}&auto_login=true"
-    )
+    params = {
+        "email": _admin["email"],
+        "auto_login": "true",
+    }
 
-    # link_button opent vaak nieuw tabblad -> gebruik markdown link met _self
-    _col_middle.markdown(
-        f"""
-        <a href="{full_url}" target="_self" style="
-            display:block;
-            text-align:center;
-            padding:0.6rem 1rem;
-            background-color:#ff4b4b;
-            color:white;
-            text-decoration:none;
-            border-radius:0.5rem;
-            font-weight:600;
-        ">
-            👥 {t('participant_app')}
-        </a>
-        """,
-        unsafe_allow_html=True
-    )
+    full_url = f"{participant_url}?{urllib.parse.urlencode(params)}"
+
+    if _col_middle.button(f"👥 {t('participant_app')}", use_container_width=True):
+        st.markdown(
+            f"""
+            <script>
+                window.location.href = {full_url!r};
+            </script>
+            """,
+            unsafe_allow_html=True,
+        )
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
