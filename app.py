@@ -300,13 +300,40 @@ _col_title.title(f"🚴 {t('title')}")
 # Link to participant app with auto-login
 if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
+
     if participant_url:
-        # Add email parameter for auto-login
+        # Env gevuld -> externe participant app gebruiken
         separator = "&" if "?" in participant_url else "?"
         full_url = f"{participant_url}{separator}email={_admin['email']}&auto_login=true"
-        _col_middle.link_button(f"👥 {t('participant_app')}", full_url, type="primary", help=t("participant_help"), width="stretch")
+
+        _col_middle.link_button(
+            f"👥 {t('participant_app')}",
+            full_url,
+            type="primary",
+            help=t("participant_help"),
+            width="stretch"
+        )
+
     else:
-        _col_middle.warning("⚠️ PARTICIPANT_APP_URL not set in environment variables")
+        # Geen env -> lokaal draaien, probeer participant.py
+        local_file = "participant.py"
+
+        if os.path.exists(local_file):
+            full_url = f"./{local_file}?email={_admin['email']}&auto_login=true"
+
+            _col_middle.link_button(
+                f"👥 {t('participant_app')}",
+                full_url,
+                type="primary",
+                help=t("participant_help"),
+                width="stretch"
+            )
+        else:
+            _col_middle.warning(
+                "⚠️ PARTICIPANT_APP_URL not set in environment variables "
+                "and local file 'participant.py' was not found. "
+                "Mogelijk bestaat het bestand niet."
+            )
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
