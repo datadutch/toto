@@ -24,7 +24,10 @@ load_dotenv()
 with open("translations.json", "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+try:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+except Exception:
+    _TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
 else:
@@ -211,6 +214,61 @@ for _url, _name, _nat, _team in _rider_rows:
 
 # ── Check if registration is open to decide UI flow ───────────────────────────
 existing_team = load_team_by_account(DB_PATH, account["id"], selected_race)
+prefill_urls = existing_team["rider_urls"] if existing_team else []
+prefill_team_name = existing_team["team_name"] if existing_team else ""
+
+# Initialise session state for rider selection (reset when race changes)
+state_key = f"selected_urls_{account['id']}_{selected_race}"
+if state_key not in st.session_state:
+    st.session_state[state_key] = list(prefill_urls)
+
+selected_urls: list = st.session_state[state_key]
+
+if existing_team:
+    st.info(f"✏️ Je hebt al een team voor deze race: **{prefill_team_name}**. Opslaan overschrijft je bestaande selectie.")
+
+# ── Team name ─────────────────────────────────────────────────────────────────
+team_name = st.text_input("Teamnaam", value=prefill_team_name, placeholder="e.g. Team Velodutch", key="team_name_input")
+
+st.divider()
+
+# ── Free-text rider input ───────────────────────────────────────────────────
+st.markdown("**📝 Typ je renners (vrije tekst)**")
+st.caption("Noem gewoon de namen, in willekeurige volgorde. De app herkent ze automatisch.")
+free_text = st.text_area(
+    "Renners",
+    placeholder="bijv. Pogacar, Vingegaard, Evenepoel, Van der Poel, Van Aert...",
+    height=100,
+    key="free_text_riders",
+    label_visibility="collapsed",
+)
+if st.button("Herken renners", key="btn_extract_riders", use_container_width=True):
+    free_text_input = st.session_state.get("free_text_riders", "").strip()
+    if not free_text_input:
+        st.warning("Typ eerst één of meer renners in het tekstveld.")
+    else:
+        with st.spinner("Even kijken..."):
+            try:
+                extracted = extract_riders_from_text(free_text_input)
+            except RuntimeError as e:
+                st.error(str(e))
+                extracted = []
+        if extracted:
+            matched_urls, not_found = match_riders_to_db(extracted, DB_PATH)
+            existing = st.session_state[state_key]
+            already_in = set(existing)
+            new_urls = [u for u in matched_urls if u not in already_in]
+            slots_left = 15 - len(existing)
+            st.session_state[state_key] = existing + new_urls[:slots_left]
+            if not_found:
+                st.warning(
+                    f"{len(not_found)} renner(s) niet gevonden in de database: "
+                    + ", ".join(f"**{n}**" for n in not_found)
+                    + ". Voeg ze hieronder handmatig toe of controleer de spelling."
+                )
+            st.rerun()
+        else:
+            st.warning("Geen renners herkend in de tekst. Controleer de invoer.")
 
 # If registration is closed and no team exists, show message in both tabs
 if not registration_open and not existing_team:

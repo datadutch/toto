@@ -306,6 +306,7 @@ def load_fantasy_team_riders(db_path: str, team_id: int) -> list[str]:
 CREATE_RACES_SQL = """
 CREATE TABLE IF NOT EXISTS races (
     race_name VARCHAR PRIMARY KEY,
+    pcs_url   VARCHAR,
     deadline  TIMESTAMP
 )
 """
@@ -321,14 +322,20 @@ def init_races_table(db_path: str) -> None:
     conn = _connect(db_path)
     try:
         conn.execute(CREATE_RACES_SQL)
+        # Migration: add pcs_url column if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE races ADD COLUMN pcs_url VARCHAR")
+        except Exception:
+            pass
+        
         for race_name, deadline in RACE_SEEDS:
             exists = conn.execute(
                 "SELECT count(*) FROM races WHERE race_name = ?", [race_name]
             ).fetchone()[0]
             if not exists:
                 conn.execute(
-                    "INSERT INTO races (race_name, deadline) VALUES (?, ?)",
-                    [race_name, deadline],
+                    "INSERT INTO races (race_name, pcs_url, deadline) VALUES (?, ?, ?)",
+                    [race_name, None, deadline],
                 )
     finally:
         conn.close()
@@ -338,9 +345,9 @@ def load_races(db_path: str) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
-            "SELECT race_name, deadline FROM races ORDER BY deadline"
+            "SELECT race_name, pcs_url, deadline FROM races ORDER BY deadline"
         ).fetchall()
-        return [{"race_name": r[0], "deadline": r[1]} for r in rows]
+        return [{"race_name": r[0], "pcs_url": r[1], "deadline": r[2]} for r in rows]
     finally:
         conn.close()
 
@@ -351,6 +358,18 @@ def update_deadline(db_path: str, race_name: str, deadline) -> None:
         conn.execute(
             "UPDATE races SET deadline = ? WHERE race_name = ?",
             [deadline, race_name],
+        )
+    finally:
+        conn.close()
+
+
+def update_pcs_url(db_path: str, race_name: str, pcs_url: str) -> None:
+    """Update the ProCyclingStats URL for a race."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE races SET pcs_url = ? WHERE race_name = ?",
+            [pcs_url, race_name],
         )
     finally:
         conn.close()
@@ -382,7 +401,8 @@ CREATE TABLE IF NOT EXISTS stages (
     day        VARCHAR,
     stage_name VARCHAR NOT NULL,
     route      VARCHAR,
-    km         FLOAT
+    km         FLOAT,
+    pcs_url    VARCHAR
 )
 """
 
@@ -426,6 +446,11 @@ def init_stages_table(db_path: str) -> None:
     conn = _connect(db_path)
     try:
         conn.execute(CREATE_STAGES_SQL)
+        # Migration: add pcs_url column if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE stages ADD COLUMN pcs_url VARCHAR")
+        except Exception:
+            pass
         existing_giro = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Giro d''Italia'"
         ).fetchone()[0]
@@ -458,13 +483,25 @@ def load_stages(db_path: str, race_name: str) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
-            "SELECT date, day, stage_name, route, km FROM stages WHERE race_name = ? ORDER BY date",
+            "SELECT date, day, stage_name, route, km, pcs_url FROM stages WHERE race_name = ? ORDER BY date",
             [race_name],
         ).fetchall()
         return [
-            {"Date": r[0], "Day": r[1] or "", "Stage": r[2], "Route": r[3] or "", "KM": r[4]}
+            {"Date": r[0], "Day": r[1] or "", "Stage": r[2], "Route": r[3] or "", "KM": r[4], "pcs_url": r[5]}
             for r in rows
         ]
+    finally:
+        conn.close()
+
+
+def update_stage_pcs_url(db_path: str, race_name: str, stage_name: str, pcs_url: str) -> None:
+    """Set or update the ProCyclingStats result URL for a specific stage."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE stages SET pcs_url = ? WHERE race_name = ? AND stage_name = ?",
+            [pcs_url.strip() or None, race_name, stage_name],
+        )
     finally:
         conn.close()
 
