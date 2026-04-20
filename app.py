@@ -254,6 +254,17 @@ if _ADMIN_EMAILS_OLD:
 if "admin_account" not in st.session_state:
     st.session_state.admin_account = None
 
+# ── Auto-login via environment variable ──────────────────────────────────────
+if st.session_state.admin_account is None:
+    env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
+    if env_auto_login_email:
+        _acct = get_account_by_email(DB_PATH, env_auto_login_email.strip())
+        if _acct:
+            # Check if account has admin privileges
+            if _acct.get("is_admin") == "yes":
+                st.session_state.admin_account = _acct
+                st.rerun()
+
 # ── Language Selector (Sidebar - Always Visible) ───────────────────────────────
 st.sidebar.markdown("---")
 st.sidebar.selectbox(

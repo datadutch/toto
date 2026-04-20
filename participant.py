@@ -93,8 +93,6 @@ st.sidebar.selectbox(
     label_visibility="visible"
 )
 
-st.sidebar.markdown("---")
-
 # ── Auto-login via URL parameter (from admin app) ──────────────────────────────
 query_params = st.query_params
 auto_login_email = query_params.get("email")
@@ -107,6 +105,15 @@ if auto_login_email and auto_login_flag == "true" and st.session_state.account i
         # Clear the query params from the URL for clean display
         st.query_params.clear()
         st.rerun()
+
+# ── Auto-login via environment variable ──────────────────────────────────────
+if st.session_state.account is None:
+    env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
+    if env_auto_login_email:
+        account = get_account_by_email(DB_PATH, env_auto_login_email)
+        if account:
+            st.session_state.account = account
+            st.rerun()
 
 # ── Auto-login via Google (Streamlit Cloud OAuth), else manual email ──────────
 if not _is_guest and _cloud_email and st.session_state.account is None:
@@ -145,6 +152,9 @@ if st.session_state.account is None:
 # ── Logged in ─────────────────────────────────────────────────────────────────
 account = st.session_state.account
 
+# ── Sidebar separator (only visible when logged in) ───────────────────────────
+st.sidebar.markdown("---")
+
 col_welcome, col_logout = st.columns([4, 1])
 col_welcome.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
 if not _is_guest:
@@ -166,8 +176,6 @@ view = st.sidebar.radio(
     label_visibility="collapsed",
     key="participant_view"
 )
-
-st.divider()
 
 # ── Race selection ────────────────────────────────────────────────────────────
 races = load_races(DB_PATH)
