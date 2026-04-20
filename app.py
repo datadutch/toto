@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import duckdb
 import streamlit as st
 import pandas as pd
@@ -17,7 +18,11 @@ from src.db import (
 
 load_dotenv()
 
-_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
+# ── Load Translations from JSON ──────────────────────────────────────────────
+with open("translations.json", "r", encoding="utf-8") as f:
+    TRANSLATIONS = json.load(f)
+
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN") or ""
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
     _READ_ONLY = False  # MotherDuck does not support read_only attach
@@ -26,6 +31,39 @@ else:
     _READ_ONLY = True
 
 st.set_page_config(page_title="Stampers Toto Administratie", page_icon="🚴", layout="wide")
+
+# ── Custom CSS for Fixed Footer Language Selector ──────────────────────────
+st.markdown("""
+    <style>
+    /* Fixed footer for language selector */
+    .footer {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: auto;
+        padding: 12px 20px;
+        background-color: rgba(255, 255, 255, 0.95);
+        border-top: 1px solid #e0e0e0;
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    }
+    .footer span {
+        font-size: 14px;
+        color: #666;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ── Initialize Language ──────────────────────────────────────────────────────
+if "language" not in st.session_state:
+    st.session_state.language = "nl"
+
+def t(key):
+    """Translate a key to the current language"""
+    return TRANSLATIONS[st.session_state.language].get(key, key)
 
 
 def get_connection():
@@ -150,7 +188,7 @@ def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
     duplicates = len(filled) - len(set(filled))
     st.caption(f"{len(filled)} / 15 posities ingevuld" + (f" — ⚠️ {duplicates} dubbele renner(s)" if duplicates else ""))
 
-    if st.button("💾 Opslaan", use_container_width=True, key=f"{key_prefix}_save_{stage_name}"):
+    if st.button("💾 Opslaan", width="stretch", key=f"{key_prefix}_save_{stage_name}"):
         if len(filled) != 15:
             st.error(f"Vul alle 15 posities in (nu {len(filled)}).")
         elif len(set(filled)) != 15:
@@ -164,7 +202,7 @@ def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
                 st.error(f"Kon niet opslaan: {exc}")
 
     if existing:
-        if st.button("🗑️ Uitslag verwijderen", use_container_width=True, key=f"{key_prefix}_delete_{stage_name}", type="secondary"):
+        if st.button("🗑️ Uitslag verwijderen", width="stretch", key=f"{key_prefix}_delete_{stage_name}", type="secondary"):
             delete_stage_results(DB_PATH, race_name, stage_name)
             st.session_state.pop(sk, None)
             for _i in range(15):
@@ -218,7 +256,7 @@ init_accounts_table(DB_PATH)
 # ── One-time migration: promote old ADMIN_EMAILS to is_admin='yes' ────────────
 _ADMIN_EMAILS_OLD = [
     e.strip().lower()
-    for e in str(st.secrets.get("ADMIN_EMAILS", "") or os.getenv("ADMIN_EMAILS", "")).split(",")
+    for e in str(os.getenv("ADMIN_EMAILS", "")).split(",")
     if e.strip()
 ]
 if _ADMIN_EMAILS_OLD:
@@ -228,10 +266,22 @@ if _ADMIN_EMAILS_OLD:
 if "admin_account" not in st.session_state:
     st.session_state.admin_account = None
 
+# ── Language Selector (Sidebar - Always Visible) ───────────────────────────────
+st.sidebar.markdown("---")
+st.sidebar.selectbox(
+    t("language"),
+    options=["nl", "en"],
+    index=0 if st.session_state.language == "nl" else 1,
+    format_func=lambda x: "🇳🇱 Nederlands" if x == "nl" else "🇬🇧 English",
+    key="lang_selector",
+    on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector}),
+    label_visibility="visible"
+)
+
 if st.session_state.admin_account is None:
-    st.title("🚴 Stampers Toto Administratie")
-    st.subheader("Inloggen")
-    _email = st.text_input("E-mailadres", placeholder="e.g. admin@example.com")
+    st.title(f"🚴 {t('title')}")
+    st.subheader(t("login"))
+    _email = st.text_input("E-mail", placeholder=t("email_placeholder"))
     if not _email.strip():
         st.stop()
     _acct = get_account_by_email(DB_PATH, _email.strip())
@@ -239,38 +289,49 @@ if st.session_state.admin_account is None:
         _acct = create_account(DB_PATH, _email.strip(), _email.strip().split("@")[0])
     # Check if account has admin privileges
     if _acct.get("is_admin") != "yes":
-        st.error("Geen toegang. Dit e-mailadres is niet geautoriseerd als beheerder.")
+        st.error(t("no_access"))
         st.stop()
     st.session_state.admin_account = _acct
     st.rerun()
 
 _admin = st.session_state.admin_account
 _col_title, _col_middle, _col_logout = st.columns([4, 2, 1])
-_col_title.title("🚴 Stampers Toto Administratie")
+_col_title.title(f"🚴 {t('title')}")
 
 # Link to participant app with auto-login
 if _admin and _admin.get("email"):
-    # For multi-page apps: participant is in pages/ directory
-    # For separate apps: set PARTICIPANT_APP_URL env var with full URL
-    participant_base = os.getenv("PARTICIPANT_APP_URL", "participant")
-    participant_url = f"{participant_base}?email={_admin['email']}&auto_login=true"
-    _col_middle.link_button("👥 Participant App", participant_url, type="primary", help="Open participant view (auto-login)", use_container_width=True)
+    participant_url = os.getenv("PARTICIPANT_APP_URL")
+    if participant_url:
+        # Add email parameter for auto-login
+        separator = "&" if "?" in participant_url else "?"
+        full_url = f"{participant_url}{separator}email={_admin['email']}&auto_login=true"
+        _col_middle.link_button(f"👥 {t('participant_app')}", full_url, type="primary", help=t("participant_help"), width="stretch")
+    else:
+        _col_middle.warning("⚠️ PARTICIPANT_APP_URL not set in environment variables")
 
-if _col_logout.button("Uitloggen", key="admin_logout"):
+if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
     st.rerun()
 
-st.caption(f"Database contains **{total:,}** riders")
+st.caption(f"{t('database_riders')} **{total:,}** {t('database_riders_suffix')}")
 
 
-tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings, tab_riders = st.tabs(["🔍 Explorer", "🏁 Giro d'Italia", "🚵 De Brabantse Pijl", "🌷 Amstel Gold Race", "🏆 Scores", "👥 Teams", "➕ Renners"])
+tab_explorer, tab_giro, tab_bp, tab_agr, tab_scores, tab_settings, tab_riders = st.tabs([
+    f"🔍 {t('tab_explorer')}", 
+    f"🏁 {t('tab_giro')}", 
+    f"🚵 {t('tab_brabantse')}", 
+    f"🌷 {t('tab_amstel')}", 
+    f"🏆 {t('tab_scores')}", 
+    f"👥 {t('tab_teams')}", 
+    f"➕ {t('tab_riders')}"
+])
 
 # ── Tab: Explorer ─────────────────────────────────────────────────────────────
 with tab_explorer:
     # Sidebar filters (visible on both tabs but only used here)
-    st.sidebar.header("Filters")
-    name_filter = st.sidebar.text_input("Search by name", placeholder="e.g. Pogacar")
-    team_filter = st.sidebar.text_input("Search by team", placeholder="e.g. UAE")
+    st.sidebar.header(t("filters"))
+    name_filter = st.sidebar.text_input(t("search_by_name"), placeholder="e.g. Pogacar")
+    team_filter = st.sidebar.text_input(t("search_by_team"), placeholder="e.g. UAE")
 
     _conn2 = get_connection()
     nationalities = ["All"] + sorted(
@@ -279,13 +340,13 @@ with tab_explorer:
         ).fetchall()]
     )
     _conn2.close()
-    nationality_filter = st.sidebar.selectbox("Nationality", nationalities)
+    nationality_filter = st.sidebar.selectbox(t("nationality"), nationalities)
 
     df = load_data(name_filter, nationality_filter, team_filter)
-    st.subheader(f"{len(df):,} riders found")
+    st.subheader(f"{len(df):,} {t('riders_found')}")
 
     if df.empty:
-        st.info("No riders match your filters.")
+        st.info(t("no_match"))
     else:
         display_cols = ["name", "nationality", "birthdate", "height", "weight", "team_name"]
         display_cols = [c for c in display_cols if c in df.columns]
@@ -304,25 +365,25 @@ with tab_explorer:
         )
 
     st.divider()
-    st.subheader("Rider Detail")
+    st.subheader(t("rider_detail"))
 
     rider_names = df["name"].dropna().tolist() if not df.empty else []
     if rider_names:
-        selected = st.selectbox("Select a rider", rider_names)
+        selected = st.selectbox(t("select_rider"), rider_names)
         if selected:
             row = df[df["name"] == selected].iloc[0]
             col1, col2, col3 = st.columns(3)
-            col1.metric("Nationality", row.get("nationality") or "—")
-            col2.metric("Date of Birth", row.get("birthdate") or "—")
-            col3.metric("Team", row.get("team_name") or "—")
-            col1.metric("Height", f"{row['height']} m" if pd.notna(row.get("height")) else "—")
-            col2.metric("Weight", f"{row['weight']} kg" if pd.notna(row.get("weight")) else "—")
+            col1.metric(t("nationality"), row.get("nationality") or "—")
+            col2.metric(t("date_of_birth"), row.get("birthdate") or "—")
+            col3.metric(t("team"), row.get("team_name") or "—")
+            col1.metric(t("height"), f"{row['height']} m" if pd.notna(row.get("height")) else "—")
+            col2.metric(t("weight"), f"{row['weight']} kg" if pd.notna(row.get("weight")) else "—")
             if row.get("rider_url"):
                 st.markdown(f"[View on ProCyclingStats](https://www.procyclingstats.com/{row['rider_url']})")
 
 # ── Tab: Giro d'Italia ────────────────────────────────────────────────────────
 with tab_giro:
-    st.subheader("Giro d'Italia — Stage Overview")
+    st.subheader(f"{t('giro_d_italia')} — {t('stage_overview')}")
 
     stages = load_stages(DB_PATH, "Giro d'Italia")
     finished = stages_with_results(DB_PATH, "Giro d'Italia")
@@ -354,11 +415,11 @@ with tab_giro:
 
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
-    st.subheader("Stage Results")
+    st.subheader(t("stage_results"))
 
     racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
 
-    sub_giro_enter, sub_giro_view = st.tabs(["📝 Enter Results", "📊 View Results"])
+    sub_giro_enter, sub_giro_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
 
     with sub_giro_enter:
         if racing_stage_names:
@@ -366,16 +427,16 @@ with tab_giro:
             with col_sel:
                 giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
             with col_fetch:
-                if st.button("🌐 Fetch from PCS", key="giro_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
+                if st.button(f"🌐 {t('fetch_pcs')}", key="giro_fetch_pcs"):
+                    with st.spinner(t("fetching")):
                         riders = _fetch_top_15_from_pcs("Giro d'Italia", giro_selected)
                         if riders:
                             # Save directly to database
                             save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {giro_selected}")
+                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {giro_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+                            st.warning(t("no_results_fetched"))
             
             _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
@@ -386,33 +447,33 @@ with tab_giro:
             if giro_results:
                 st.dataframe(pd.DataFrame(giro_results), hide_index=True, width="stretch")
             else:
-                st.info("Nog geen uitslag ingevoerd.")
+                st.info(t("no_stage_results"))
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
-    st.markdown("#### Registration Deadline")
+    st.markdown(f"#### {t('registration_deadline')}")
     _giro_races = load_races(DB_PATH)
     _giro_race = next((r for r in _giro_races if r["race_name"] == "Giro d'Italia"), None)
     if _giro_race:
         _cur = _giro_race["deadline"]
         _c1, _c2, _c3 = st.columns([2, 2, 1])
-        _new_date = _c1.date_input("Date", value=_cur.date() if _cur else None, key="giro_dl_date")
-        _new_time = _c2.time_input("Time", value=_cur.time() if _cur else None, key="giro_dl_time")
-        if _c3.button("💾 Save", key="giro_dl_save", use_container_width=True):
+        _new_date = _c1.date_input(t("date"), value=_cur.date() if _cur else None, key="giro_dl_date")
+        _new_time = _c2.time_input(t("time"), value=_cur.time() if _cur else None, key="giro_dl_time")
+        if _c3.button(f"💾 {t('save')}", key="giro_dl_save", width="stretch"):
             from datetime import datetime
             combined = datetime.combine(_new_date, _new_time)
             update_deadline(DB_PATH, "Giro d'Italia", combined)
-            st.success(f"Deadline updated to {combined.strftime('%d/%m/%Y %H:%M')}")
+            st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
 
 # ── Tab: De Brabantse Pijl ───────────────────────────────────────────────────
 with tab_bp:
-    st.subheader("De Brabantse Pijl")
+    st.subheader(t("brabantse_pijl"))
 
     bp_stages = load_stages(DB_PATH, "De Brabantse Pijl")
     bp_stage_names = [s["Stage"] for s in bp_stages]
 
-    sub_bp_enter, sub_bp_view = st.tabs(["📝 Enter Results", "📊 View Results"])
+    sub_bp_enter, sub_bp_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
 
     with sub_bp_enter:
         if bp_stage_names:
@@ -420,15 +481,15 @@ with tab_bp:
             with col_sel:
                 bp_selected = st.selectbox("Etappe", bp_stage_names, key="bp_result_stage")
             with col_fetch:
-                if st.button("🌐 Fetch from PCS", key="bp_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
+                if st.button(f"🌐 {t('fetch_pcs')}", key="bp_fetch_pcs"):
+                    with st.spinner(t("fetching")):
                         riders = _fetch_top_15_from_pcs("De Brabantse Pijl", bp_selected)
                         if riders:
                             save_stage_results(DB_PATH, "De Brabantse Pijl", bp_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {bp_selected}")
+                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {bp_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+                            st.warning(t("no_results_fetched"))
             
             _render_results_entry("De Brabantse Pijl", bp_selected, "bp")
 
@@ -439,33 +500,33 @@ with tab_bp:
             if bp_results:
                 st.dataframe(pd.DataFrame(bp_results), hide_index=True, width="stretch")
             else:
-                st.info("Nog geen uitslag ingevoerd.")
+                st.info(t("no_stage_results"))
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
-    st.markdown("#### Registration Deadline")
+    st.markdown(f"#### {t('registration_deadline')}")
     _bp_races = load_races(DB_PATH)
     _bp_race = next((r for r in _bp_races if r["race_name"] == "De Brabantse Pijl"), None)
     if _bp_race:
         _cur = _bp_race["deadline"]
         _c1, _c2, _c3 = st.columns([2, 2, 1])
-        _new_date = _c1.date_input("Date", value=_cur.date() if _cur else None, key="bp_dl_date")
-        _new_time = _c2.time_input("Time", value=_cur.time() if _cur else None, key="bp_dl_time")
-        if _c3.button("💾 Save", key="bp_dl_save", use_container_width=True):
+        _new_date = _c1.date_input(t("date"), value=_cur.date() if _cur else None, key="bp_dl_date")
+        _new_time = _c2.time_input(t("time"), value=_cur.time() if _cur else None, key="bp_dl_time")
+        if _c3.button(f"💾 {t('save')}", key="bp_dl_save", width="stretch"):
             from datetime import datetime
             combined = datetime.combine(_new_date, _new_time)
             update_deadline(DB_PATH, "De Brabantse Pijl", combined)
-            st.success(f"Deadline updated to {combined.strftime('%d/%m/%Y %H:%M')}")
+            st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
 
 # ── Tab: Amstel Gold Race ─────────────────────────────────────────────────────
 with tab_agr:
-    st.subheader("Amstel Gold Race")
+    st.subheader(t("amstel_gold_race"))
 
     agr_stages = load_stages(DB_PATH, "Amstel Gold Race")
     agr_stage_names = [s["Stage"] for s in agr_stages]
 
-    sub_agr_enter, sub_agr_view = st.tabs(["📝 Enter Results", "📊 View Results"])
+    sub_agr_enter, sub_agr_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
 
     with sub_agr_enter:
         if agr_stage_names:
@@ -473,15 +534,15 @@ with tab_agr:
             with col_sel:
                 agr_selected = st.selectbox("Etappe", agr_stage_names, key="agr_result_stage")
             with col_fetch:
-                if st.button("🌐 Fetch from PCS", key="agr_fetch_pcs"):
-                    with st.spinner("Fetching from ProCyclingStats..."):
+                if st.button(f"🌐 {t('fetch_pcs')}", key="agr_fetch_pcs"):
+                    with st.spinner(t("fetching")):
                         riders = _fetch_top_15_from_pcs("Amstel Gold Race", agr_selected)
                         if riders:
                             save_stage_results(DB_PATH, "Amstel Gold Race", agr_selected, riders)
-                            st.success(f"✓ Fetched and saved {len(riders)} riders for {agr_selected}")
+                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {agr_selected}")
                             st.rerun()
                         else:
-                            st.warning("No results fetched. Check if the race data exists on ProCyclingStats.")
+                            st.warning(t("no_results_fetched"))
             
             _render_results_entry("Amstel Gold Race", agr_selected, "agr")
 
@@ -492,29 +553,29 @@ with tab_agr:
             if agr_results:
                 st.dataframe(pd.DataFrame(agr_results), hide_index=True, width="stretch")
             else:
-                st.info("Nog geen uitslag ingevoerd.")
+                st.info(t("no_stage_results"))
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
-    st.markdown("#### Registration Deadline")
+    st.markdown(f"#### {t('registration_deadline')}")
     _agr_races = load_races(DB_PATH)
     _agr_race = next((r for r in _agr_races if r["race_name"] == "Amstel Gold Race"), None)
     if _agr_race:
         _cur = _agr_race["deadline"]
         _c1, _c2, _c3 = st.columns([2, 2, 1])
-        _new_date = _c1.date_input("Date", value=_cur.date() if _cur else None, key="agr_dl_date")
-        _new_time = _c2.time_input("Time", value=_cur.time() if _cur else None, key="agr_dl_time")
-        if _c3.button("💾 Save", key="agr_dl_save", use_container_width=True):
+        _new_date = _c1.date_input(t("date"), value=_cur.date() if _cur else None, key="agr_dl_date")
+        _new_time = _c2.time_input(t("time"), value=_cur.time() if _cur else None, key="agr_dl_time")
+        if _c3.button(f"💾 {t('save')}", key="agr_dl_save", width="stretch"):
             from datetime import datetime
             combined = datetime.combine(_new_date, _new_time)
             update_deadline(DB_PATH, "Amstel Gold Race", combined)
-            st.success(f"Deadline updated to {combined.strftime('%d/%m/%Y %H:%M')}")
+            st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
 
 # ── Tab: Scores ───────────────────────────────────────────────────────────────
 with tab_scores:
-    st.subheader("🏆 Scores")
-    st.caption("Puntensysteem: 1e = 15 pts • 2e = 14 pts • ... • 15e = 1 pt")
+    st.subheader(f"🏆 {t('scores')}")
+    st.caption(t("scoring_system"))
 
     _all_races = load_races(DB_PATH)
     _score_race_tabs = st.tabs([r["race_name"] for r in _all_races])
@@ -525,24 +586,19 @@ with tab_scores:
             scores = calculate_scores(DB_PATH, _rname)
 
             if not scores:
-                st.info(f"Nog geen uitslagen ingevoerd voor **{_rname}**.")
+                st.info(f"{t('no_scores')} **{_rname}**.")
             else:
                 scores_df = pd.DataFrame(scores)
 
-                def _highlight_leader(row):
-                    if row.name == 0:
-                        return ["background-color: #fff3cd; font-weight: bold"] * len(row)
-                    return [""] * len(row)
-
-                st.markdown("#### Klassement")
+                st.markdown(f"#### {t('ranking')}")
                 st.dataframe(
-                    scores_df.style.apply(_highlight_leader, axis=1),
+                    scores_df,
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                 )
 
                 st.divider()
-                st.markdown("#### Team breakdown")
+                st.markdown(f"#### {t('team_breakdown')}")
                 teams = load_fantasy_teams(DB_PATH, _rname)
                 if teams:
                     team_labels = {f"{t['team_name']} ({t['manager_name']})": t["id"] for t in teams}
@@ -552,19 +608,19 @@ with tab_scores:
                         breakdown = calculate_stage_breakdown(DB_PATH, _rname, chosen_id)
                         if breakdown:
                             bd_df = pd.DataFrame(breakdown)
-                            st.dataframe(bd_df, hide_index=True, use_container_width=True)
-                            st.metric("Totaal punten", int(bd_df["Points"].sum()))
+                            st.dataframe(bd_df, hide_index=True, width="stretch")
+                            st.metric(t("total_points"), int(bd_df["Points"].sum()))
                         else:
-                            st.info("Geen van de renners uit dit team eindigde in de top 15.")
+                            st.info(t("no_team_riders"))
 
 # ── Tab: Teams ───────────────────────────────────────────────────────────────
 with tab_settings:
-    st.subheader("👥 Teams")
+    st.subheader(f"👥 {t('teams')}")
     
     # ── Admin User Management ─────────────────────────────────────────────
     if st.session_state.admin_account.get("is_admin") == "yes":
         st.markdown("---")
-        st.subheader("👑 Admin Gebruikers")
+        st.subheader(f"👑 {t('admin_users')}")
         
         # List all accounts with admin status
         conn = get_connection()
@@ -572,52 +628,52 @@ with tab_settings:
         conn.close()
         
         if all_accounts:
-            df_accounts = pd.DataFrame(all_accounts, columns=["E-mail", "Naam", "Admin"])
+            df_accounts = pd.DataFrame(all_accounts, columns=[t("email"), t("name"), "Admin"])
             st.dataframe(df_accounts, hide_index=True, width="stretch")
             
             st.markdown("---")
-            st.subheader("Admin status wijzigen")
+            st.subheader(t("admin_status_change"))
             
-            email_to_update = st.text_input("E-mailadres", placeholder="e.g. user@example.com", key="admin_email_update")
+            email_to_update = st.text_input(t("email_address"), placeholder="e.g. user@example.com", key="admin_email_update")
             if email_to_update:
-                new_status = st.radio("Admin status", ["yes", "no"], key="admin_status_choice")
-                if st.button("Opslaan", key="save_admin_status"):
+                new_status = st.radio(t("admin_status"), ["yes", "no"], key="admin_status_choice")
+                if st.button(t("save_rider"), key="save_admin_status"):
                     success = set_admin_status(DB_PATH, email_to_update, new_status)
                     if success:
-                        st.success(f"Admin status voor {email_to_update} gewijzigd naar '{new_status}'")
+                        st.success(f"{t('admin_status_change')} {email_to_update} naar '{new_status}'")
                         st.rerun()
                     else:
-                        st.error(f"Account niet gevonden: {email_to_update}")
+                        st.error(f"Account not found: {email_to_update}")
         else:
-            st.info("Geen accounts gevonden.")
+            st.info(t("no_accounts"))
         
         st.markdown("---")
     
     races_for_settings = load_races(DB_PATH)
     races_for_settings_names = [r["race_name"] for r in races_for_settings]
-    settings_race = st.selectbox("Select race", races_for_settings_names, key="settings_race_select")
+    settings_race = st.selectbox(t("select_race"), races_for_settings_names, key="settings_race_select")
 
-    st.markdown("#### Registered Teams")
+    st.markdown(f"#### {t('registered_teams')}")
     teams_all = load_fantasy_teams(DB_PATH, settings_race)
     if not teams_all:
-        st.info("No teams registered yet for this race.")
+        st.info(t("no_teams"))
     else:
         # Show summary table of all teams
         summary_df = pd.DataFrame([
-            {"Team": t["team_name"], "Manager": t["manager_name"], "Registered": t["created_at"]}
-            for t in teams_all
+            {t("name"): team["team_name"], t("manager"): team["manager_name"], t("registered"): team["created_at"]}
+            for team in teams_all
         ])
         st.dataframe(summary_df, hide_index=True, width="stretch")
 
         st.divider()
-        team_labels_all = {f"{t['team_name']} (by {t['manager_name']})": t["id"] for t in teams_all}
-        chosen_team = st.selectbox("View a team's riders", list(team_labels_all.keys()), key="settings_team_select")
+        team_labels_all = {f"{team['team_name']} (by {team['manager_name']})": team["id"] for team in teams_all}
+        chosen_team = st.selectbox(t("view_team_riders"), list(team_labels_all.keys()), key="settings_team_select")
         if chosen_team:
             chosen_id = team_labels_all[chosen_team]
             team_riders = load_fantasy_team_riders(DB_PATH, chosen_id)
             if team_riders:
                 st.dataframe(
-                    pd.DataFrame(team_riders).rename(columns={"name": "Rider", "nationality": "NAT", "team": "Team"}),
+                    pd.DataFrame(team_riders).rename(columns={t("rider"): "Rider", "nationality": t("nat"), "team": t("team")}),
                     hide_index=True,
                     width="stretch",
                 )
@@ -625,12 +681,12 @@ with tab_settings:
 
 # ── Tab: Renners ──────────────────────────────────────────────────────────────
 with tab_riders:
-    st.subheader("Renner toevoegen / bewerken")
+    st.subheader(t("add_edit_riders"))
 
-    sub_add, sub_edit, sub_delete = st.tabs(["➕ Nieuwe renner", "✏️ Bewerk renner", "🗑️ Verwijder renner"])
+    sub_add, sub_edit, sub_delete = st.tabs([f"➕ {t('add_new_rider')}", f"✏️ {t('edit_rider')}", f"🗑️ {t('delete_rider')}"])
 
     with sub_add:
-        st.markdown("Voeg een nieuwe renner toe aan de database.")
+        st.markdown(t("add_description"))
         _tc = get_connection()
         _team_rows = _tc.execute(
             "SELECT DISTINCT team_name, team_url FROM riders WHERE team_name IS NOT NULL ORDER BY team_name"
@@ -640,35 +696,35 @@ with tab_riders:
         _team_names = list(_team_options.keys())
 
         with st.form("add_rider_form"):
-            r_name = st.text_input("Naam *", placeholder="bijv. Tadej Pogačar")
+            r_name = st.text_input(f"{t('rider_name')} *", placeholder=t("rider_name_placeholder"))
             c1, c2 = st.columns(2)
-            r_nat = c1.text_input("Nationaliteit", placeholder="bijv. SI", max_chars=3)
-            r_bdate = c2.text_input("Geboortedatum", placeholder="bijv. 2000-9-21")
+            r_nat = c1.text_input(t("nationality"), placeholder=t("nationality_placeholder"), max_chars=3)
+            r_bdate = c2.text_input(t("birthdate"), placeholder=t("birthdate_placeholder"))
             c3, c4 = st.columns(2)
-            r_height = c3.number_input("Lengte (m)", min_value=1.4, max_value=2.2, value=None, step=0.01, format="%.2f")
-            r_weight = c4.number_input("Gewicht (kg)", min_value=40.0, max_value=120.0, value=None, step=0.5, format="%.1f")
-            r_team = st.selectbox("Ploeg", options=["— kies ploeg —"] + _team_names, key="add_rider_team")
-            r_url = st.text_input("Renner URL (unieke sleutel) *", placeholder="bijv. rider/tadej-pogacar")
-            submitted = st.form_submit_button("💾 Opslaan", use_container_width=True)
+            r_height = c3.number_input(t("height"), min_value=1.4, max_value=2.2, value=None, step=0.01, format="%.2f")
+            r_weight = c4.number_input(t("weight"), min_value=40.0, max_value=120.0, value=None, step=0.5, format="%.1f")
+            r_team = st.selectbox(t("team"), options=[t("select_team")] + _team_names, key="add_rider_team")
+            r_url = st.text_input(f"{t('rider_url')} *", placeholder=t("rider_url_placeholder"))
+            submitted = st.form_submit_button(f"💾 {t('save_rider')}", width="stretch")
 
         if submitted:
             if not r_name.strip() or not r_url.strip():
-                st.error("Naam en Renner URL zijn verplicht.")
+                st.error(t("name_url_required"))
             else:
-                chosen_team = r_team if r_team != "— kies ploeg —" else None
+                chosen_team = r_team if r_team != t("select_team") else None
                 chosen_team_url = _team_options.get(chosen_team) if chosen_team else None
                 try:
                     save_rider(DB_PATH, r_url.strip(), r_name.strip(), r_nat.strip() or None,
                                r_bdate.strip() or None, r_height, r_weight,
                                chosen_team, chosen_team_url)
                     st.cache_data.clear()
-                    st.success(f"Renner **{r_name.strip()}** opgeslagen!")
+                    st.success(f"Renner **{r_name.strip()}** {t('rider_saved')}")
                 except Exception as exc:
-                    st.error(f"Fout bij opslaan: {exc}")
+                    st.error(f"{t('save_error')} {exc}")
 
     with sub_edit:
-        st.markdown("Zoek een renner en pas gegevens aan.")
-        edit_search = st.text_input("Zoek op naam", key="edit_rider_search", placeholder="bijv. Hermans")
+        st.markdown(t("edit_description"))
+        edit_search = st.text_input(t("search_rider"), key="edit_rider_search", placeholder=t("search_placeholder"))
         if edit_search.strip():
             _ec = get_connection()
             edit_rows = _ec.execute(
@@ -678,41 +734,41 @@ with tab_riders:
             ).fetchall()
             _ec.close()
             if not edit_rows:
-                st.info("Geen renners gevonden.")
+                st.info(t("no_riders_found"))
             else:
                 edit_labels = {f"{r[1]} ({r[2] or '?'}) — {r[6] or '?'}": r for r in edit_rows}
-                chosen_label = st.selectbox("Selecteer renner", list(edit_labels.keys()), key="edit_rider_select")
+                chosen_label = st.selectbox(t("select_rider_edit"), list(edit_labels.keys()), key="edit_rider_select")
                 if chosen_label:
                     er = edit_labels[chosen_label]
                     with st.form("edit_rider_form"):
-                        er_name = st.text_input("Naam *", value=er[1] or "")
+                        er_name = st.text_input(f"{t('rider_name')} *", value=er[1] or "")
                         ec1, ec2 = st.columns(2)
-                        er_nat = ec1.text_input("Nationaliteit", value=er[2] or "", max_chars=3)
-                        er_bdate = ec2.text_input("Geboortedatum", value=er[3] or "")
+                        er_nat = ec1.text_input(t("nationality"), value=er[2] or "", max_chars=3)
+                        er_bdate = ec2.text_input(t("birthdate"), value=er[3] or "")
                         ec3, ec4 = st.columns(2)
-                        er_height = ec3.number_input("Lengte (m)", min_value=1.4, max_value=2.2, value=float(er[4]) if er[4] else None, step=0.01, format="%.2f")
-                        er_weight = ec4.number_input("Gewicht (kg)", min_value=40.0, max_value=120.0, value=float(er[5]) if er[5] else None, step=0.5, format="%.1f")
-                        er_team = st.text_input("Ploeg", value=er[6] or "")
-                        er_team_url = st.text_input("Ploeg URL", value=er[7] or "")
-                        st.text_input("Renner URL", value=er[0], disabled=True)
-                        edit_submitted = st.form_submit_button("💾 Opslaan", use_container_width=True)
+                        er_height = ec3.number_input(t("height"), min_value=1.4, max_value=2.2, value=float(er[4]) if er[4] else None, step=0.01, format="%.2f")
+                        er_weight = ec4.number_input(t("weight"), min_value=40.0, max_value=120.0, value=float(er[5]) if er[5] else None, step=0.5, format="%.1f")
+                        er_team = st.text_input(t("team"), value=er[6] or "")
+                        er_team_url = st.text_input(f"{t('team')} URL", value=er[7] or "")
+                        st.text_input(t("rider_url"), value=er[0], disabled=True)
+                        edit_submitted = st.form_submit_button(f"💾 {t('save_rider')}", width="stretch")
 
                     if edit_submitted:
                         if not er_name.strip():
-                            st.error("Naam is verplicht.")
+                            st.error(t("name_required"))
                         else:
                             try:
                                 save_rider(DB_PATH, er[0], er_name.strip(), er_nat.strip() or None,
                                            er_bdate.strip() or None, er_height, er_weight,
                                            er_team.strip() or None, er_team_url.strip() or None)
                                 st.cache_data.clear()
-                                st.success(f"Renner **{er_name.strip()}** bijgewerkt!")
+                                st.success(f"Renner **{er_name.strip()}** {t('rider_updated')}")
                             except Exception as exc:
-                                st.error(f"Fout bij opslaan: {exc}")
+                                st.error(f"{t('save_error')} {exc}")
 
     with sub_delete:
-        st.markdown("Verwijder een renner uit de database. Let op: dit kan niet ongedaan worden gemaakt.")
-        del_search = st.text_input("Zoek op naam", key="del_rider_search", placeholder="bijv. Hermans")
+        st.markdown(t("delete_description"))
+        del_search = st.text_input(t("search_rider"), key="del_rider_search", placeholder=t("search_placeholder"))
         if del_search.strip():
             _dc = get_connection()
             del_rows = _dc.execute(
@@ -721,19 +777,19 @@ with tab_riders:
             ).fetchall()
             _dc.close()
             if not del_rows:
-                st.info("Geen renners gevonden.")
+                st.info(t("no_riders_found"))
             else:
                 del_labels = {f"{r[1]} ({r[2] or '?'}) — {r[3] or '?'}": r[0] for r in del_rows}
-                del_chosen = st.selectbox("Selecteer renner", list(del_labels.keys()), key="del_rider_select")
+                del_chosen = st.selectbox(t("select_rider_edit"), list(del_labels.keys()), key="del_rider_select")
                 if del_chosen:
                     del_url = del_labels[del_chosen]
-                    st.warning(f"Je staat op het punt **{del_chosen}** te verwijderen.")
-                    if st.button("🗑️ Definitief verwijderen", type="primary", key="del_rider_confirm"):
+                    st.warning(f"{t('delete_confirm')} **{del_chosen}**.")
+                    if st.button(f"🗑️ {t('delete_permanent')}", type="primary", key="del_rider_confirm"):
                         try:
                             delete_rider(DB_PATH, del_url)
                             st.cache_data.clear()
-                            st.success(f"Renner verwijderd.")
+                            st.success(t("rider_deleted"))
                             st.rerun()
                         except Exception as exc:
-                            st.error(f"Fout bij verwijderen: {exc}")
+                            st.error(f"{t('delete_error')} {exc}")
 
