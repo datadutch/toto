@@ -443,7 +443,7 @@ GIRO_2025_STAGES = [
     ("Giro d'Italia", "31/05", "Sunday",    "Stage 21",      "Rome - Rome",                             131.0),
 ]
 
-TOUR_DE_ROMANDIE_2025_STAGES = [
+TOUR_DE_ROMANDIE_2026_STAGES = [
     ("Tour de Romandie", "28/04", "Tuesday",   "Stage 1", "Villars-sur-Glâne - Villars-sur-Glâne", 3.0),
     ("Tour de Romandie", "29/04", "Wednesday", "Stage 2", "Martigny - Martigny",                 171.2),
     ("Tour de Romandie", "30/04", "Thursday",  "Stage 3", "Rue - Vucherens",                  173.1),
@@ -452,7 +452,7 @@ TOUR_DE_ROMANDIE_2025_STAGES = [
     ("Tour de Romandie", "03/05", "Sunday",    "Stage 6", "Lucens - Leysin",                178.2),
 ]
 
-VUELTA_2025_STAGES = [
+VUELTA_2026_STAGES = [
     ("Vuelta a España", "22/08", "Saturday",   "Stage 1 (ITT)", "Monaco - Monaco",                     9.0),
     ("Vuelta a España", "23/08", "Sunday",     "Stage 2",       "Monaco - Manosque",                   215.2),
     ("Vuelta a España", "24/08", "Monday",     "Stage 3",       "Gruissan - Font Romeu",                166.7),
@@ -536,7 +536,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_romandie == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_ROMANDIE_2025_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_ROMANDIE_2026_STAGES],
             )
         existing_vuelta = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Vuelta a España'"
@@ -544,7 +544,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_vuelta == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in VUELTA_2025_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in VUELTA_2026_STAGES],
             )
     finally:
         conn.close()

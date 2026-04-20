@@ -165,14 +165,14 @@ def test_stages_data():
     try:
         from src.db import (
             GIRO_2025_STAGES, TOUR_DE_FRANCE_2026_STAGES,
-            TOUR_DE_ROMANDIE_2025_STAGES, VUELTA_2025_STAGES
+            TOUR_DE_ROMANDIE_2026_STAGES, VUELTA_2026_STAGES
         )
         
         all_stages = [
             ("Giro d'Italia", GIRO_2025_STAGES),
             ("Tour de France", TOUR_DE_FRANCE_2026_STAGES),
-            ("Tour de Romandie", TOUR_DE_ROMANDIE_2025_STAGES),
-            ("Vuelta a España", VUELTA_2025_STAGES),
+            ("Tour de Romandie", TOUR_DE_ROMANDIE_2026_STAGES),
+            ("Vuelta a España", VUELTA_2026_STAGES),
         ]
         
         for race_name, stages in all_stages:
