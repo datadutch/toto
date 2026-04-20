@@ -301,39 +301,23 @@ _col_title.title(f"🚴 {t('title')}")
 if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
 
-    if participant_url:
-        # Externe app via ENV
-        separator = "&" if "?" in participant_url else "?"
-        full_url = f"{participant_url}{separator}email={_admin['email']}&auto_login=true"
+    # Als ENV leeg is, fallback gebruiken
+    if not participant_url:
+        participant_url = "https://stamperstotogalore.streamlit.app"
 
-    else:
-        # Lokaal in dezelfde Streamlit app -> multipage route
-        pages_dir = "pages/participant.py"
+    separator = "&" if "?" in participant_url else "?"
+    full_url = (
+        f"{participant_url}{separator}"
+        f"email={_admin['email']}&auto_login=true"
+    )
 
-        if os.path.exists(pages_dir):
-            # Streamlit multipage apps openen via query param page=
-            full_url = (
-                f"?page=participant"
-                f"&email={_admin['email']}"
-                f"&auto_login=true"
-            )
-        else:
-            _col_middle.warning(
-                "⚠️ PARTICIPANT_APP_URL not set and local participant page "
-                "'pages/participant.py' was not found. "
-                "Mogelijk bestaat het bestand niet."
-            )
-            full_url = None
-
-    if full_url:
-        _col_middle.link_button(
-            f"👥 {t('participant_app')}",
-            full_url,
-            type="primary",
-            help=t("participant_help"),
-            width="stretch"
-        )
-        
+    _col_middle.link_button(
+        f"👥 {t('participant_app')}",
+        full_url,
+        type="primary",
+        help=t("participant_help"),
+        width="stretch"
+    )    
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
