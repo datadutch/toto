@@ -373,6 +373,18 @@ def update_pcs_url(db_path: str, race_name: str, pcs_url: str) -> None:
         conn.close()
 
 
+def update_stage_pcs_url(db_path: str, race_name: str, stage_name: str, pcs_url: str) -> None:
+    """Update the ProCyclingStats URL for a specific stage."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE stages SET pcs_url = ? WHERE race_name = ? AND stage_name = ?",
+            [pcs_url, race_name, stage_name],
+        )
+    finally:
+        conn.close()
+
+
 def is_registration_open(db_path: str, race_name: str) -> bool:
     """Returns True if the deadline has not yet passed (or no deadline set)."""
     conn = _connect(db_path, read_only=True)
