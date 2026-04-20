@@ -312,9 +312,7 @@ CREATE TABLE IF NOT EXISTS races (
 """
 
 RACE_SEEDS = [
-    ("Giro d'Italia",      "2026-05-07 22:00:00"),
-    ("De Brabantse Pijl",  "2026-04-16 22:00:00"),
-    ("Amstel Gold Race",   "2026-04-18 22:00:00"),
+    ("Giro d'Italia", "2026-05-07 22:00:00"),
 ]
 
 
@@ -410,21 +408,18 @@ GIRO_2025_STAGES = [
     ("Giro d'Italia", "08/05", "Friday",    "Stage 1",       "Nessebar - Burgas",                       156.0),
     ("Giro d'Italia", "09/05", "Saturday",  "Stage 2",       "Burgas - Valiko Tarnovo",                 220.0),
     ("Giro d'Italia", "10/05", "Sunday",    "Stage 3",       "Plovdiv - Sofia",                         174.0),
-    ("Giro d'Italia", "11/05", None,        "Rest Day",      None,                                      None),
     ("Giro d'Italia", "12/05", "Tuesday",   "Stage 4",       "Catanzaro - Cosenza",                     144.0),
     ("Giro d'Italia", "13/05", "Wednesday", "Stage 5",       "Praia a Mare - Potenza",                  204.0),
     ("Giro d'Italia", "14/05", "Thursday",  "Stage 6",       "Paestum - Naples",                        161.0),
     ("Giro d'Italia", "15/05", "Friday",    "Stage 7",       "Formia - Blockhaus",                      246.0),
     ("Giro d'Italia", "16/05", "Saturday",  "Stage 8",       "Chieti - Fermo",                          159.0),
     ("Giro d'Italia", "17/05", "Sunday",    "Stage 9",       "Cervia - Corno alle Scale",               184.0),
-    ("Giro d'Italia", "18/05", None,        "Rest Day",      None,                                      None),
     ("Giro d'Italia", "19/05", "Tuesday",   "Stage 10 (ITT)","Viareggio - Massa",                        40.2),
     ("Giro d'Italia", "20/05", "Wednesday", "Stage 11",      "Porcari (Paper District) - Chiavari",     178.0),
     ("Giro d'Italia", "21/05", "Thursday",  "Stage 12",      "Imperia - Novi Ligure",                   177.0),
     ("Giro d'Italia", "22/05", "Friday",    "Stage 13",      "Alessandria - Verbania",                  186.0),
     ("Giro d'Italia", "23/05", "Saturday",  "Stage 14",      "Aosta - Pila",                            133.0),
     ("Giro d'Italia", "24/05", "Sunday",    "Stage 15",      "Voghera - Milan",                         136.0),
-    ("Giro d'Italia", "25/05", None,        "Rest Day",      None,                                      None),
     ("Giro d'Italia", "26/05", "Tuesday",   "Stage 16",      "Bellinzona - Carì",                       113.0),
     ("Giro d'Italia", "27/05", "Wednesday", "Stage 17",      "Cassano d'Adda - Andalo",                 200.0),
     ("Giro d'Italia", "28/05", "Thursday",  "Stage 18",      "Fai della Paganella - Pieve di Soligo",  167.0),
@@ -433,13 +428,7 @@ GIRO_2025_STAGES = [
     ("Giro d'Italia", "31/05", "Sunday",    "Stage 21",      "Rome - Rome",                             131.0),
 ]
 
-BRABANTSE_PIJL_STAGES = [
-    ("De Brabantse Pijl", "17/04", "Thursday", "Stage 1", "Beersel - Overijse", 163.0),
-]
 
-AMSTEL_GOLD_STAGES = [
-    ("Amstel Gold Race", "19/04", "Sunday", "Stage 1", "Maastricht - Berg en Terblijt", 257.4),
-]
 
 
 def init_stages_table(db_path: str) -> None:
@@ -458,22 +447,6 @@ def init_stages_table(db_path: str) -> None:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
                 GIRO_2025_STAGES,
-            )
-        existing_bp = conn.execute(
-            "SELECT count(*) FROM stages WHERE race_name = 'De Brabantse Pijl'"
-        ).fetchone()[0]
-        if existing_bp == 0:
-            conn.executemany(
-                "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
-                BRABANTSE_PIJL_STAGES,
-            )
-        existing_agr = conn.execute(
-            "SELECT count(*) FROM stages WHERE race_name = 'Amstel Gold Race'"
-        ).fetchone()[0]
-        if existing_agr == 0:
-            conn.executemany(
-                "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
-                AMSTEL_GOLD_STAGES,
             )
     finally:
         conn.close()
