@@ -1,19 +1,19 @@
 import os
-import re
 import json
 import duckdb
 import streamlit as st
+import urllib.parse
 import pandas as pd
 import cloudscraper
 from dotenv import load_dotenv
 from procyclingstats import Stage as PCSStage
 from src.db import (
-    init_fantasy_tables, save_fantasy_team, load_fantasy_teams, load_fantasy_team_riders,
+    init_fantasy_tables, load_fantasy_teams, load_fantasy_team_riders,
     init_stages_table, load_stages,
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
-    init_races_table, load_races, update_deadline, update_pcs_url,
-    init_accounts_table, init_admin_accounts, get_account_by_email, create_account, set_admin_status,
+    init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email, 
+    create_account, set_admin_status,
     save_rider, delete_rider,
 )
 
@@ -298,10 +298,6 @@ _col_title, _col_middle, _col_logout = st.columns([4, 2, 1])
 _col_title.title(f"🚴 {t('title')}")
 
 # Link to participant app with auto-login
-import os
-import urllib.parse
-import streamlit as st
-
 if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
 
