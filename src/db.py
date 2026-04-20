@@ -338,6 +338,12 @@ def init_races_table(db_path: str) -> None:
                     "INSERT INTO races (race_name, pcs_url, deadline) VALUES (?, ?, ?)",
                     [race_name, None, deadline],
                 )
+            else:
+                # Update existing race with new deadline
+                conn.execute(
+                    "UPDATE races SET deadline = ? WHERE race_name = ?",
+                    [deadline, race_name],
+                )
     finally:
         conn.close()
 
