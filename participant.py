@@ -306,8 +306,12 @@ if view == "register":
             key="free_text_riders",
             label_visibility="collapsed",
         )
-        if free_text.strip():
-            if st.button(f"🔍 {t('participant_recognize')}", key="btn_extract_riders"):
+        
+        # Always show the recognize button
+        if st.button(f"🔍 {t('participant_recognize')}", key="btn_extract_riders"):
+            if not free_text.strip():
+                st.warning(t("participant_search_hint"))
+            else:
                 with st.spinner(t("participant_recognizing")):
                     try:
                         extracted = extract_riders_from_text(free_text.strip())
