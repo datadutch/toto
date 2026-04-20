@@ -301,7 +301,7 @@ _col_title.title(f"🚴 {t('title')}")
 if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
 
-    # Als ENV leeg is, fallback gebruiken
+    # Fallback als ENV leeg is
     if not participant_url:
         participant_url = "https://stamperstotogalore.streamlit.app"
 
@@ -311,13 +311,24 @@ if _admin and _admin.get("email"):
         f"email={_admin['email']}&auto_login=true"
     )
 
-    _col_middle.link_button(
-        f"👥 {t('participant_app')}",
-        full_url,
-        type="primary",
-        help=t("participant_help"),
-        width="stretch"
-    )    
+    # link_button opent vaak nieuw tabblad -> gebruik markdown link met _self
+    _col_middle.markdown(
+        f"""
+        <a href="{full_url}" target="_self" style="
+            display:block;
+            text-align:center;
+            padding:0.6rem 1rem;
+            background-color:#ff4b4b;
+            color:white;
+            text-decoration:none;
+            border-radius:0.5rem;
+            font-weight:600;
+        ">
+            👥 {t('participant_app')}
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
