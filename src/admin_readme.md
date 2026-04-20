@@ -1,0 +1,2 @@
+-- admin instructies
+-- race toevoegen: ga naar procyclingstats, zoek de race op en copy paste de etappes in een prompt met als begeleidende instructie: voeg deze race toe aan de database

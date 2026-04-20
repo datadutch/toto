@@ -313,6 +313,9 @@ CREATE TABLE IF NOT EXISTS races (
 
 RACE_SEEDS = [
     ("Giro d'Italia", "2026-05-07 22:00:00"),
+    ("Tour de France", "2026-07-04 12:00:00"),
+    ("Tour de Romandie", "2026-04-28 12:00:00"),
+    ("Vuelta a España", "2026-08-22 12:00:00"),
 ]
 
 
@@ -440,6 +443,65 @@ GIRO_2025_STAGES = [
     ("Giro d'Italia", "31/05", "Sunday",    "Stage 21",      "Rome - Rome",                             131.0),
 ]
 
+TOUR_DE_ROMANDIE_2025_STAGES = [
+    ("Tour de Romandie", "28/04", "Tuesday",   "Stage 1", "Villars-sur-Glâne - Villars-sur-Glâne", 3.0),
+    ("Tour de Romandie", "29/04", "Wednesday", "Stage 2", "Martigny - Martigny",                 171.2),
+    ("Tour de Romandie", "30/04", "Thursday",  "Stage 3", "Rue - Vucherens",                  173.1),
+    ("Tour de Romandie", "01/05", "Friday",    "Stage 4", "Orbe - Orbe",                     176.6),
+    ("Tour de Romandie", "02/05", "Saturday",  "Stage 5", "Broc - Charmey",                  149.6),
+    ("Tour de Romandie", "03/05", "Sunday",    "Stage 6", "Lucens - Leysin",                178.2),
+]
+
+VUELTA_2025_STAGES = [
+    ("Vuelta a España", "22/08", "Saturday",   "Stage 1 (ITT)", "Monaco - Monaco",                     9.0),
+    ("Vuelta a España", "23/08", "Sunday",     "Stage 2",       "Monaco - Manosque",                   215.2),
+    ("Vuelta a España", "24/08", "Monday",     "Stage 3",       "Gruissan - Font Romeu",                166.7),
+    ("Vuelta a España", "25/08", "Tuesday",    "Stage 4",       "Andorra La Vella - Andorra La Vella", 104.9),
+    ("Vuelta a España", "26/08", "Wednesday",  "Stage 5",       "Falset - Roquetes",                    171.1),
+    ("Vuelta a España", "27/08", "Thursday",   "Stage 6",       "Alcossebre - Castellón",               176.8),
+    ("Vuelta a España", "28/08", "Friday",     "Stage 7",       "Vall d'Alba - Aramón Valdelinares",    149.9),
+    ("Vuelta a España", "29/08", "Saturday",   "Stage 8",       "Puçol - Xeraco",                       176.4),
+    ("Vuelta a España", "30/08", "Sunday",     "Stage 9",       "Villajoyosa - Alto de Aitana",        187.5),
+    ("Vuelta a España", "31/08", "Rest Day",   "Rest Day",     "",                                   0.0),
+    ("Vuelta a España", "01/09", "Tuesday",    "Stage 10",      "Alcaraz - Elche de la Sierra",        184.5),
+    ("Vuelta a España", "02/09", "Wednesday",  "Stage 11",      "Cartagena - Lorca",                   156.1),
+    ("Vuelta a España", "03/09", "Thursday",   "Stage 12",      "Vera - Calar Alto",                   166.5),
+    ("Vuelta a España", "04/09", "Friday",     "Stage 13",      "Almuñécar - Loja",                    193.2),
+    ("Vuelta a España", "05/09", "Saturday",   "Stage 14",      "Jaén - Sierra de la Pandera",        152.7),
+    ("Vuelta a España", "06/09", "Sunday",     "Stage 15",      "Palma del Río - Córdoba",            181.2),
+    ("Vuelta a España", "07/09", "Rest Day",   "Rest Day",     "",                                   0.0),
+    ("Vuelta a España", "08/09", "Tuesday",    "Stage 16",      "Cortegana - Palos de la Frontera",     186.0),
+    ("Vuelta a España", "09/09", "Wednesday",  "Stage 17",      "Dos Hermanas - Sevilla",               189.2),
+    ("Vuelta a España", "10/09", "Thursday",   "Stage 18 (ITT)","El Puerto de Santa María - Jerez de la Frontera", 32.5),
+    ("Vuelta a España", "11/09", "Friday",     "Stage 19",      "Vélez-Málaga - Peñas Blancas. Estepona", 205.1),
+    ("Vuelta a España", "12/09", "Saturday",   "Stage 20",      "La Calahorra - Collado del Alguacil", 206.7),
+    ("Vuelta a España", "13/09", "Sunday",     "Stage 21",      "Carrefour Granada - Granada",          99.4),
+]
+
+TOUR_DE_FRANCE_2026_STAGES = [
+    ("Tour de France", "04/07", "Saturday",   "Stage 1 (TTT)",   "Barcelona - Barcelona",                  19.0),
+    ("Tour de France", "05/07", "Sunday",     "Stage 2",        "Tarragona - Barcelona",               182.0),
+    ("Tour de France", "06/07", "Monday",     "Stage 3",        "Granollers - Les Angles",             196.0),
+    ("Tour de France", "07/07", "Tuesday",    "Stage 4",        "Carcassonne - Foix",                  182.0),
+    ("Tour de France", "08/07", "Wednesday",  "Stage 5",        "Lannemezan - Pau",                    158.0),
+    ("Tour de France", "09/07", "Thursday",   "Stage 6",        "Pau - Gavarnie-Gèdre",                186.0),
+    ("Tour de France", "10/07", "Friday",     "Stage 7",        "Hagetmau - Bordeaux",                 175.0),
+    ("Tour de France", "11/07", "Saturday",   "Stage 8",        "Périgueux - Bergerac",                182.0),
+    ("Tour de France", "12/07", "Sunday",     "Stage 9",        "Malemort - Ussel",                    185.0),
+    ("Tour de France", "14/07", "Tuesday",    "Stage 10",       "Aurillac - Le Lioran",                167.0),
+    ("Tour de France", "15/07", "Wednesday",  "Stage 11",       "Vichy - Nevers",                      161.0),
+    ("Tour de France", "16/07", "Thursday",   "Stage 12",       "Circuit de Nevers Magny-Cours - Chalon-sur-Saône", 181.0),
+    ("Tour de France", "17/07", "Friday",     "Stage 13",       "Dole - Belfort",                       205.0),
+    ("Tour de France", "18/07", "Saturday",   "Stage 14",       "Mulhouse - Le Markstein",             155.0),
+    ("Tour de France", "19/07", "Sunday",     "Stage 15",       "Champagnole - Plateau de Solaison",   184.0),
+    ("Tour de France", "21/07", "Tuesday",    "Stage 16 (ITT)", "Évian Les-Bains - Thonon Les-Bains",  26.0),
+    ("Tour de France", "22/07", "Wednesday",  "Stage 17",       "Chambéry - Voiron",                   175.0),
+    ("Tour de France", "23/07", "Thursday",   "Stage 18",       "Voiron - Orcières Merlette",           185.0),
+    ("Tour de France", "24/07", "Friday",     "Stage 19",       "Gap - Alpe d'Huez",                     128.0),
+    ("Tour de France", "25/07", "Saturday",   "Stage 20",       "Le Bourg d'Oisans - Alpe d'Huez",     171.0),
+    ("Tour de France", "26/07", "Sunday",     "Stage 21",       "Thoiry - Paris",                        130.0),
+]
+
 
 
 
@@ -457,8 +519,32 @@ def init_stages_table(db_path: str) -> None:
         ).fetchone()[0]
         if existing_giro == 0:
             conn.executemany(
-                "INSERT INTO stages (race_name, date, day, stage_name, route, km) VALUES (?, ?, ?, ?, ?, ?)",
-                GIRO_2025_STAGES,
+                "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in GIRO_2025_STAGES],
+            )
+        existing_tdf = conn.execute(
+            "SELECT count(*) FROM stages WHERE race_name = 'Tour de France'"
+        ).fetchone()[0]
+        if existing_tdf == 0:
+            conn.executemany(
+                "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_FRANCE_2026_STAGES],
+            )
+        existing_romandie = conn.execute(
+            "SELECT count(*) FROM stages WHERE race_name = 'Tour de Romandie'"
+        ).fetchone()[0]
+        if existing_romandie == 0:
+            conn.executemany(
+                "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_ROMANDIE_2025_STAGES],
+            )
+        existing_vuelta = conn.execute(
+            "SELECT count(*) FROM stages WHERE race_name = 'Vuelta a España'"
+        ).fetchone()[0]
+        if existing_vuelta == 0:
+            conn.executemany(
+                "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in VUELTA_2025_STAGES],
             )
     finally:
         conn.close()
