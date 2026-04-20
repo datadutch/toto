@@ -302,10 +302,30 @@ if _admin and _admin.get("email"):
     participant_url = os.getenv("PARTICIPANT_APP_URL")
 
     if participant_url:
-        # Env gevuld -> externe participant app gebruiken
+        # Externe app via ENV
         separator = "&" if "?" in participant_url else "?"
         full_url = f"{participant_url}{separator}email={_admin['email']}&auto_login=true"
 
+    else:
+        # Lokaal in dezelfde Streamlit app -> multipage route
+        pages_dir = "pages/participant.py"
+
+        if os.path.exists(pages_dir):
+            # Streamlit multipage apps openen via query param page=
+            full_url = (
+                f"?page=participant"
+                f"&email={_admin['email']}"
+                f"&auto_login=true"
+            )
+        else:
+            _col_middle.warning(
+                "⚠️ PARTICIPANT_APP_URL not set and local participant page "
+                "'pages/participant.py' was not found. "
+                "Mogelijk bestaat het bestand niet."
+            )
+            full_url = None
+
+    if full_url:
         _col_middle.link_button(
             f"👥 {t('participant_app')}",
             full_url,
@@ -313,27 +333,6 @@ if _admin and _admin.get("email"):
             help=t("participant_help"),
             width="stretch"
         )
-
-    else:
-        # Geen env -> lokaal draaien, probeer participant.py
-        local_file = "participant.py"
-
-        if os.path.exists(local_file):
-            full_url = f"./{local_file}?email={_admin['email']}&auto_login=true"
-
-            _col_middle.link_button(
-                f"👥 {t('participant_app')}",
-                full_url,
-                type="primary",
-                help=t("participant_help"),
-                width="stretch"
-            )
-        else:
-            _col_middle.warning(
-                "⚠️ PARTICIPANT_APP_URL not set in environment variables "
-                "and local file 'participant.py' was not found. "
-                "Mogelijk bestaat het bestand niet."
-            )
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.admin_account = None
