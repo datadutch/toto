@@ -237,8 +237,8 @@ rider_options = {}   # label -> url
 url_to_label = {}    # url -> label
 _url_to_norm = {}    # url -> normalized name
 _selected_set = set()  # for fast O(1) lookup later
-for _url, _name, _nat, _team in _rider_rows:
-    _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}"
+for _url, _name, _nickname, _nat, _team in _rider_rows:
+    _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
     rider_options[_label] = _url
     url_to_label[_url] = _label
     _url_to_norm[_url] = _normalize(_name)
@@ -339,8 +339,8 @@ if view == "register":
                     try:
                         # Pass rider names and rows to ground the LLM's responses and validate
                         # Filter out None values
-                        rider_names = [name for _, name, _, _ in _rider_rows if name]
-                        rider_rows_for_extraction = [(url, name) for url, name, _, _ in _rider_rows if name]
+                        rider_names = [name for _, name, _, _, _ in _rider_rows if name]
+                        rider_rows_for_extraction = [(url, name) for url, name, _, _, _ in _rider_rows if name]
                         extracted = extract_riders_from_text(
                             free_text.strip(), rider_names, rider_rows_for_extraction
                         )
