@@ -1036,7 +1036,6 @@ with tab_riders:
 
         with st.form("add_rider_form"):
             r_name = st.text_input(f"{t('rider_name')} *", placeholder=t("rider_name_placeholder"))
-            r_nickname = st.text_input(t("nickname"), placeholder=t("nickname_placeholder"))
             c1, c2 = st.columns(2)
             r_nat = c1.text_input(t("nationality"), placeholder=t("nationality_placeholder"), max_chars=3)
             r_bdate = c2.text_input(t("birthdate"), placeholder=t("birthdate_placeholder"))
@@ -1054,7 +1053,7 @@ with tab_riders:
                 chosen_team = r_team if r_team != t("select_team") else None
                 chosen_team_url = _team_options.get(chosen_team) if chosen_team else None
                 try:
-                    save_rider(DB_PATH, r_url.strip(), r_name.strip(), r_nickname.strip() or None, r_nat.strip() or None,
+                    save_rider(DB_PATH, r_url.strip(), r_name.strip(), r_nat.strip() or None,
                                r_bdate.strip() or None, r_height, r_weight,
                                chosen_team, chosen_team_url)
                     st.cache_data.clear()
@@ -1082,10 +1081,9 @@ with tab_riders:
                     er = edit_labels[chosen_label]
                     with st.form("edit_rider_form"):
                         er_name = st.text_input(f"{t('rider_name')} *", value=er[1] or "")
-                        er_nickname = st.text_input(t("nickname"), value=er[2] if len(er) > 2 else "")
                         ec1, ec2 = st.columns(2)
-                        er_nat = ec1.text_input(t("nationality"), value=er[3] if len(er) > 3 else "", max_chars=3)
-                        er_bdate = ec2.text_input(t("birthdate"), value=er[4] if len(er) > 4 else "")
+                        er_nat = ec1.text_input(t("nationality"), value=er[2] or "", max_chars=3)
+                        er_bdate = ec2.text_input(t("birthdate"), value=er[3] or "")
                         ec3, ec4 = st.columns(2)
                         er_height = ec3.number_input(t("height"), min_value=1.4, max_value=2.2, value=float(er[4]) if er[4] else None, step=0.01, format="%.2f")
                         er_weight = ec4.number_input(t("weight"), min_value=40.0, max_value=120.0, value=float(er[5]) if er[5] else None, step=0.5, format="%.1f")
@@ -1099,8 +1097,8 @@ with tab_riders:
                             st.error(t("name_required"))
                         else:
                             try:
-                                save_rider(DB_PATH, er[0], er_name.strip(), er_nickname.strip() or None,
-                                           er_nat.strip() or None, er_bdate.strip() or None, er_height, er_weight,
+                                save_rider(DB_PATH, er[0], er_name.strip(), er_nat.strip() or None,
+                                           er_bdate.strip() or None, er_height, er_weight,
                                            er_team.strip() or None, er_team_url.strip() or None)
                                 st.cache_data.clear()
                                 st.success(f"Renner **{er_name.strip()}** {t('rider_updated')}")
