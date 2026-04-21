@@ -150,6 +150,7 @@
     "participant_recognize": "Herken renners",
     "participant_recognizing": "Even kijken...",
     "participant_not_found": "niet gevonden in de database",
+    "participant_not_found_startlist": "niet gevonden in de startlijst",
     "participant_add_manually": "Voeg ze hieronder handmatig toe of controleer de spelling.",
     "participant_no_riders_recognized": "Geen renners herkend in de tekst. Controleer de invoer.",
     "participant_verify_selection": "Controleer of pas je selectie aan",
