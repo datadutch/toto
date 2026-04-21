@@ -2,11 +2,22 @@ import time
 import logging
 from typing import Optional
 
-from procyclingstats import Ranking, Rider
+from procyclingstats import Ranking, Rider, RaceStartlist
 
 logger = logging.getLogger(__name__)
 
 SLEEP_BETWEEN_REQUESTS = 1.0  # seconds
+
+
+# For Cloudflare-protected sites, we need cloudscraper
+try:
+    import cloudscraper
+    _scraper = cloudscraper.create_scraper()
+    _USE_CLOUDSCRAPER = True
+except ImportError:
+    import requests
+    _scraper = requests
+    _USE_CLOUDSCRAPER = False
 
 RANKING_BASE = (
     "rankings.php?s=&nation=&age=&zage=&page=smallerorequal"
@@ -81,3 +92,43 @@ def get_rider_profile(rider_url: str) -> Optional[dict]:
     except Exception as exc:
         logger.warning(f"Failed to scrape rider {rider_url}: {exc}")
         return None
+
+
+def get_race_startlist(startlist_url: str) -> list[dict]:
+    """
+    Fetch and parse the startlist from a ProCyclingStats startlist URL.
+    
+    Args:
+        startlist_url: Full URL to the PCS startlist page
+                    (e.g., "https://www.procyclingstats.com/race/giro-ditalia/2026/startlist")
+    
+    Returns:
+        List of rider dicts with keys: rider_url, rider_name, team_name
+        Returns empty list on failure.
+    """
+    try:
+        logger.info(f"Fetching startlist from {startlist_url}")
+        
+        # Use cloudscraper to bypass Cloudflare
+        response = _scraper.get(startlist_url, timeout=30)
+        response.raise_for_status()
+        
+        # Parse the startlist
+        startlist = RaceStartlist(startlist_url, html=response.text, update_html=False)
+        riders = startlist.startlist("rider_url", "rider_name", "team_name")
+        
+        # Format the results
+        result = []
+        for rider in riders:
+            result.append({
+                "rider_url": rider.get("rider_url"),
+                "rider_name": rider.get("rider_name"),
+                "team_name": rider.get("team_name") or "",
+            })
+        
+        logger.info(f"Found {len(result)} riders in startlist")
+        return result
+        
+    except Exception as exc:
+        logger.error(f"Failed to fetch startlist from {startlist_url}: {exc}")
+        return []

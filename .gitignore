@@ -54,3 +54,4 @@ data/*.db
 # PDFs (drop them in pdfs/ folder, not tracked in git)
 pdfs/
 
+.vibe.md

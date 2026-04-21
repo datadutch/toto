@@ -311,11 +311,21 @@ CREATE TABLE IF NOT EXISTS races (
 )
 """
 
+CREATE_STARTLIST_SQL = """
+CREATE TABLE IF NOT EXISTS startlists (
+    race_name  VARCHAR NOT NULL,
+    rider_url  VARCHAR NOT NULL,
+    rider_name VARCHAR NOT NULL,
+    team_name  VARCHAR,
+    PRIMARY KEY (race_name, rider_url)
+)
+"""
+
 RACE_SEEDS = [
-    ("Giro d'Italia", "2026-05-07 22:00:00"),
-    ("Tour de France", "2026-07-04 12:00:00"),
-    ("Tour de Romandie", "2026-04-28 12:00:00"),
-    ("Vuelta a España", "2026-08-22 12:00:00"),
+    ("Giro d'Italia", "2026-05-07 22:00:00", "https://www.procyclingstats.com/race/giro-ditalia/2026"),
+    ("Tour de France", "2026-07-04 12:00:00", "https://www.procyclingstats.com/race/tour-de-france/2026"),
+    ("Tour de Romandie", "2026-04-28 12:00:00", "https://www.procyclingstats.com/race/tour-de-romandie/2026"),
+    ("Vuelta a España", "2026-08-22 12:00:00", "https://www.procyclingstats.com/race/vuelta-a-espana/2026"),
 ]
 
 
@@ -329,20 +339,27 @@ def init_races_table(db_path: str) -> None:
         except Exception:
             pass
         
-        for race_name, deadline in RACE_SEEDS:
+        for race_item in RACE_SEEDS:
+            # Handle both 2-tuple (name, deadline) and 3-tuple (name, deadline, pcs_url)
+            if len(race_item) == 3:
+                race_name, deadline, pcs_url = race_item
+            else:
+                race_name, deadline = race_item
+                pcs_url = None
+            
             exists = conn.execute(
                 "SELECT count(*) FROM races WHERE race_name = ?", [race_name]
             ).fetchone()[0]
             if not exists:
                 conn.execute(
                     "INSERT INTO races (race_name, pcs_url, deadline) VALUES (?, ?, ?)",
-                    [race_name, None, deadline],
+                    [race_name, pcs_url, deadline],
                 )
             else:
-                # Update existing race with new deadline
+                # Update existing race with new deadline and pcs_url
                 conn.execute(
-                    "UPDATE races SET deadline = ? WHERE race_name = ?",
-                    [deadline, race_name],
+                    "UPDATE races SET deadline = ?, pcs_url = ? WHERE race_name = ?",
+                    [deadline, pcs_url, race_name],
                 )
     finally:
         conn.close()
@@ -368,6 +385,97 @@ def update_deadline(db_path: str, race_name: str, deadline) -> None:
         )
     finally:
         conn.close()
+
+
+def init_startlist_table(db_path: str) -> None:
+    """Initialize the startlists table."""
+    conn = _connect(db_path)
+    try:
+        conn.execute(CREATE_STARTLIST_SQL)
+    finally:
+        conn.close()
+
+
+def save_startlist(db_path: str, race_name: str, riders: list[dict]) -> int:
+    """
+    Save startlist riders for a race.
+    
+    Args:
+        db_path: Path to the database
+        race_name: Name of the race
+        riders: List of rider dicts with keys: rider_url, rider_name, team_name
+        
+    Returns:
+        Number of riders saved
+    """
+    if not riders:
+        return 0
+    
+    conn = _connect(db_path)
+    try:
+        # Clear existing startlist for this race
+        conn.execute(
+            "DELETE FROM startlists WHERE race_name = ?",
+            [race_name],
+        )
+        
+        # Insert new startlist
+        inserted = 0
+        for rider in riders:
+            conn.execute(
+                "INSERT INTO startlists (race_name, rider_url, rider_name, team_name) VALUES (?, ?, ?, ?)",
+                [
+                    race_name,
+                    rider.get("rider_url"),
+                    rider.get("rider_name"),
+                    rider.get("team_name"),
+                ],
+            )
+            inserted += 1
+        
+        return inserted
+    finally:
+        conn.close()
+
+
+def load_startlist(db_path: str, race_name: str) -> list[dict]:
+    """
+    Load startlist riders for a race.
+    
+    Args:
+        db_path: Path to the database
+        race_name: Name of the race
+        
+    Returns:
+        List of rider dicts with keys: rider_url, rider_name, team_name
+    """
+    conn = _connect(db_path, read_only=True)
+    try:
+        rows = conn.execute(
+            "SELECT rider_url, rider_name, team_name FROM startlists WHERE race_name = ? ORDER BY rider_name",
+            [race_name],
+        ).fetchall()
+        return [
+            {"rider_url": r[0], "rider_name": r[1], "team_name": r[2]}
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def get_startlist_rider_names(db_path: str, race_name: str) -> list[str]:
+    """
+    Get just the rider names from the startlist for a race.
+    
+    Args:
+        db_path: Path to the database
+        race_name: Name of the race
+        
+    Returns:
+        List of rider names (strings)
+    """
+    startlist = load_startlist(db_path, race_name)
+    return [r["rider_name"] for r in startlist if r.get("rider_name")]
 
 
 def update_pcs_url(db_path: str, race_name: str, pcs_url: str) -> None:
