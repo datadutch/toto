@@ -1068,7 +1068,7 @@ with tab_riders:
         if edit_search.strip():
             _ec = get_connection()
             edit_rows = _ec.execute(
-                "SELECT rider_url, name, nationality, birthdate, height, weight, team_name, team_url "
+                "SELECT rider_url, name, nickname, nationality, birthdate, height, weight, team_name, team_url "
                 "FROM riders WHERE name ILIKE ? ORDER BY name LIMIT 20",
                 [f"%{edit_search.strip()}%"],
             ).fetchall()
@@ -1076,21 +1076,21 @@ with tab_riders:
             if not edit_rows:
                 st.info(t("no_riders_found"))
             else:
-                edit_labels = {f"{r[1]} ({r[2] or '?'}) — {r[6] or '?'}": r for r in edit_rows}
+                edit_labels = {f"{r[1]} ({r[3] or '?'}) — {r[7] or '?'}" + (f" [{r[2]}]" if r[2] else ""): r for r in edit_rows}
                 chosen_label = st.selectbox(t("select_rider_edit"), list(edit_labels.keys()), key="edit_rider_select")
                 if chosen_label:
                     er = edit_labels[chosen_label]
                     with st.form("edit_rider_form"):
                         er_name = st.text_input(f"{t('rider_name')} *", value=er[1] or "")
-                        er_nickname = st.text_input(t("nickname"), value=er[2] if len(er) > 2 else "")
+                        er_nickname = st.text_input(t("nickname"), value=er[2] or "")
                         ec1, ec2 = st.columns(2)
-                        er_nat = ec1.text_input(t("nationality"), value=er[3] if len(er) > 3 else "", max_chars=3)
-                        er_bdate = ec2.text_input(t("birthdate"), value=er[4] if len(er) > 4 else "")
+                        er_nat = ec1.text_input(t("nationality"), value=er[3] or "", max_chars=3)
+                        er_bdate = ec2.text_input(t("birthdate"), value=er[4] or "")
                         ec3, ec4 = st.columns(2)
-                        er_height = ec3.number_input(t("height"), min_value=1.4, max_value=2.2, value=float(er[4]) if er[4] else None, step=0.01, format="%.2f")
-                        er_weight = ec4.number_input(t("weight"), min_value=40.0, max_value=120.0, value=float(er[5]) if er[5] else None, step=0.5, format="%.1f")
-                        er_team = st.text_input(t("team"), value=er[6] or "")
-                        er_team_url = st.text_input(f"{t('team')} URL", value=er[7] or "")
+                        er_height = ec3.number_input(t("height"), min_value=1.4, max_value=2.2, value=float(er[5]) if er[5] else None, step=0.01, format="%.2f")
+                        er_weight = ec4.number_input(t("weight"), min_value=40.0, max_value=120.0, value=float(er[6]) if er[6] else None, step=0.5, format="%.1f")
+                        er_team = st.text_input(t("team"), value=er[7] or "")
+                        er_team_url = st.text_input(f"{t('team')} URL", value=er[8] or "")
                         st.text_input(t("rider_url"), value=er[0], disabled=True)
                         edit_submitted = st.form_submit_button(f"💾 {t('save_rider')}", width="stretch")
 
