@@ -355,6 +355,7 @@ if view == "register":
                     already_in = set(existing)
                     new_urls = [u for u in matched_urls if u not in already_in]
                     slots_left = 15 - len(existing)
+                    added_any = len(new_urls) > 0
                     st.session_state[state_key] = existing + new_urls[:slots_left]
                     if not_found:
                         # Use startlist-specific message if a race is selected and has a startlist
@@ -364,7 +365,9 @@ if view == "register":
                             + ", ".join(f"**{n}**" for n in not_found)
                             + f". {t('participant_add_manually')}"
                         )
-                    st.rerun()
+                    # Only rerun if we actually added new riders
+                    if added_any:
+                        st.rerun()
                 else:
                     st.warning(t("participant_no_riders_recognized"))
 
