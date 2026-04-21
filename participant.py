@@ -314,10 +314,13 @@ if view == "register":
             else:
                 with st.spinner(t("participant_recognizing")):
                     try:
-                        # Pass rider names to ground the LLM's responses
+                        # Pass rider names and rows to ground the LLM's responses and validate
                         # Filter out None values
                         rider_names = [name for _, name, _, _ in _rider_rows if name]
-                        extracted = extract_riders_from_text(free_text.strip(), rider_names)
+                        rider_rows_for_extraction = [(url, name) for url, name, _, _ in _rider_rows if name]
+                        extracted = extract_riders_from_text(
+                            free_text.strip(), rider_names, rider_rows_for_extraction
+                        )
                     except RuntimeError as e:
                         st.error(str(e))
                         extracted = []
