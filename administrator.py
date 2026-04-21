@@ -14,8 +14,9 @@ from src.db import (
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email, 
     create_account, set_admin_status,
-    save_rider, delete_rider,
+    save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
 )
+from src.scraper import get_race_startlist
 
 load_dotenv()
 
@@ -230,6 +231,7 @@ init_stages_table(DB_PATH)
 init_stage_results_table(DB_PATH)
 init_races_table(DB_PATH)
 init_accounts_table(DB_PATH)
+init_startlist_table(DB_PATH)
 
 # ── One-time migration: promote old ADMIN_EMAILS to is_admin='yes' ────────────
 _ADMIN_EMAILS_OLD = []
@@ -483,6 +485,48 @@ with tab_giro:
 
 
 
+    # ── Startlist ─────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"#### {t('startlist')}")
+    
+    _giro_pcs_url = "https://www.procyclingstats.com/race/giro-ditalia/2026"
+    col_startlist_btn, col_startlist_info = st.columns([1, 3])
+    
+    with col_startlist_btn:
+        if st.button(f"🔄 {t('fetch_startlist')}", key="btn_fetch_startlist_giro"):
+            with st.spinner(t("fetching_startlist")):
+                startlist_url = f"{_giro_pcs_url}/startlist"
+                startlist_riders = get_race_startlist(startlist_url)
+                if startlist_riders:
+                    saved_count = save_startlist(DB_PATH, "Giro d'Italia", startlist_riders)
+                    st.success(f"✓ {t('startlist_saved')} — {saved_count} {t('riders')}")
+                    st.rerun()
+                else:
+                    st.warning(t("no_startlist"))
+    
+    current_startlist = load_startlist(DB_PATH, "Giro d'Italia")
+    if current_startlist:
+        with col_startlist_info:
+            st.info(t("startlist_riders").format(count=len(current_startlist)))
+    
+    with st.expander(f"{t('view_startlist')} ({len(current_startlist) if current_startlist else 0} {t('riders')})", expanded=len(current_startlist) < 5 if current_startlist else False):
+        if current_startlist:
+            startlist_df = pd.DataFrame(current_startlist)
+            display_cols = ['rider_name', 'team_name']
+            col_names = [t('rider_name'), t('team')]
+            st.dataframe(
+                startlist_df[display_cols].rename(columns=dict(zip(display_cols, col_names))),
+                hide_index=True,
+                width="stretch"
+            )
+            if st.button(f"🗑️ {t('clear_startlist')}", key="btn_clear_startlist_giro", type="secondary"):
+                save_startlist(DB_PATH, "Giro d'Italia", [])
+                st.success(t("startlist_cleared"))
+                st.rerun()
+        else:
+            st.info(t("no_startlist"))
+
+
 # ── Tab: Tour de France ──────────────────────────────────────────────────────
 with tab_tdf:
     st.subheader(f"{t('tour_de_france')} — {t('stage_overview')}")
@@ -566,6 +610,48 @@ with tab_tdf:
             update_deadline(DB_PATH, "Tour de France", combined)
             st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
+
+
+    # ── Startlist ─────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"#### {t('startlist')}")
+    
+    _tdf_pcs_url = "https://www.procyclingstats.com/race/tour-de-france/2026"
+    col_startlist_btn, col_startlist_info = st.columns([1, 3])
+    
+    with col_startlist_btn:
+        if st.button(f"🔄 {t('fetch_startlist')}", key="btn_fetch_startlist_tdf"):
+            with st.spinner(t("fetching_startlist")):
+                startlist_url = f"{_tdf_pcs_url}/startlist"
+                startlist_riders = get_race_startlist(startlist_url)
+                if startlist_riders:
+                    saved_count = save_startlist(DB_PATH, "Tour de France", startlist_riders)
+                    st.success(f"✓ {t('startlist_saved')} — {saved_count} {t('riders')}")
+                    st.rerun()
+                else:
+                    st.warning(t("no_startlist"))
+    
+    current_startlist = load_startlist(DB_PATH, "Tour de France")
+    if current_startlist:
+        with col_startlist_info:
+            st.info(t("startlist_riders").format(count=len(current_startlist)))
+    
+    with st.expander(f"{t('view_startlist')} ({len(current_startlist) if current_startlist else 0} {t('riders')})", expanded=len(current_startlist) < 5 if current_startlist else False):
+        if current_startlist:
+            startlist_df = pd.DataFrame(current_startlist)
+            display_cols = ['rider_name', 'team_name']
+            col_names = [t('rider_name'), t('team')]
+            st.dataframe(
+                startlist_df[display_cols].rename(columns=dict(zip(display_cols, col_names))),
+                hide_index=True,
+                width="stretch"
+            )
+            if st.button(f"🗑️ {t('clear_startlist')}", key="btn_clear_startlist_tdf", type="secondary"):
+                save_startlist(DB_PATH, "Tour de France", [])
+                st.success(t("startlist_cleared"))
+                st.rerun()
+        else:
+            st.info(t("no_startlist"))
 
 
 # ── Tab: Tour de Romandie ────────────────────────────────────────────────────
@@ -653,6 +739,48 @@ with tab_romandie:
             st.rerun()
 
 
+    # ── Startlist ─────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"#### {t('startlist')}")
+    
+    _romandie_pcs_url = "https://www.procyclingstats.com/race/tour-de-romandie/2026"
+    col_startlist_btn, col_startlist_info = st.columns([1, 3])
+    
+    with col_startlist_btn:
+        if st.button(f"🔄 {t('fetch_startlist')}", key="btn_fetch_startlist_romandie"):
+            with st.spinner(t("fetching_startlist")):
+                startlist_url = f"{_romandie_pcs_url}/startlist"
+                startlist_riders = get_race_startlist(startlist_url)
+                if startlist_riders:
+                    saved_count = save_startlist(DB_PATH, "Tour de Romandie", startlist_riders)
+                    st.success(f"✓ {t('startlist_saved')} — {saved_count} {t('riders')}")
+                    st.rerun()
+                else:
+                    st.warning(t("no_startlist"))
+    
+    current_startlist = load_startlist(DB_PATH, "Tour de Romandie")
+    if current_startlist:
+        with col_startlist_info:
+            st.info(t("startlist_riders").format(count=len(current_startlist)))
+    
+    with st.expander(f"{t('view_startlist')} ({len(current_startlist) if current_startlist else 0} {t('riders')})", expanded=len(current_startlist) < 5 if current_startlist else False):
+        if current_startlist:
+            startlist_df = pd.DataFrame(current_startlist)
+            display_cols = ['rider_name', 'team_name']
+            col_names = [t('rider_name'), t('team')]
+            st.dataframe(
+                startlist_df[display_cols].rename(columns=dict(zip(display_cols, col_names))),
+                hide_index=True,
+                width="stretch"
+            )
+            if st.button(f"🗑️ {t('clear_startlist')}", key="btn_clear_startlist_romandie", type="secondary"):
+                save_startlist(DB_PATH, "Tour de Romandie", [])
+                st.success(t("startlist_cleared"))
+                st.rerun()
+        else:
+            st.info(t("no_startlist"))
+
+
 # ── Tab: Vuelta a España ─────────────────────────────────────────────────────
 with tab_vuelta:
     st.subheader(f"{t('vuelta_a_espana')} — {t('stage_overview')}")
@@ -736,6 +864,48 @@ with tab_vuelta:
             update_deadline(DB_PATH, "Vuelta a España", combined)
             st.success(f"{t('deadline_updated')} {combined.strftime('%d/%m/%Y %H:%M')}")
             st.rerun()
+
+
+    # ── Startlist ─────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"#### {t('startlist')}")
+    
+    _vuelta_pcs_url = "https://www.procyclingstats.com/race/vuelta-a-espana/2026"
+    col_startlist_btn, col_startlist_info = st.columns([1, 3])
+    
+    with col_startlist_btn:
+        if st.button(f"🔄 {t('fetch_startlist')}", key="btn_fetch_startlist_vuelta"):
+            with st.spinner(t("fetching_startlist")):
+                startlist_url = f"{_vuelta_pcs_url}/startlist"
+                startlist_riders = get_race_startlist(startlist_url)
+                if startlist_riders:
+                    saved_count = save_startlist(DB_PATH, "Vuelta a España", startlist_riders)
+                    st.success(f"✓ {t('startlist_saved')} — {saved_count} {t('riders')}")
+                    st.rerun()
+                else:
+                    st.warning(t("no_startlist"))
+    
+    current_startlist = load_startlist(DB_PATH, "Vuelta a España")
+    if current_startlist:
+        with col_startlist_info:
+            st.info(t("startlist_riders").format(count=len(current_startlist)))
+    
+    with st.expander(f"{t('view_startlist')} ({len(current_startlist) if current_startlist else 0} {t('riders')})", expanded=len(current_startlist) < 5 if current_startlist else False):
+        if current_startlist:
+            startlist_df = pd.DataFrame(current_startlist)
+            display_cols = ['rider_name', 'team_name']
+            col_names = [t('rider_name'), t('team')]
+            st.dataframe(
+                startlist_df[display_cols].rename(columns=dict(zip(display_cols, col_names))),
+                hide_index=True,
+                width="stretch"
+            )
+            if st.button(f"🗑️ {t('clear_startlist')}", key="btn_clear_startlist_vuelta", type="secondary"):
+                save_startlist(DB_PATH, "Vuelta a España", [])
+                st.success(t("startlist_cleared"))
+                st.rerun()
+        else:
+            st.info(t("no_startlist"))
 
 
 # ── Tab: Scores ─────────────────────────────────────────────────────────────
