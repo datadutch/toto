@@ -450,12 +450,12 @@ GIRO_2026_STAGES = [
 ]
 
 TOUR_DE_ROMANDIE_2026_STAGES = [
-    ("Tour de Romandie", "28/04", "Tuesday",   "Stage 1", "Villars-sur-Glâne - Villars-sur-Glâne", 3.0),
-    ("Tour de Romandie", "29/04", "Wednesday", "Stage 2", "Martigny - Martigny",                 171.2),
-    ("Tour de Romandie", "30/04", "Thursday",  "Stage 3", "Rue - Vucherens",                  173.1),
-    ("Tour de Romandie", "01/05", "Friday",    "Stage 4", "Orbe - Orbe",                     176.6),
-    ("Tour de Romandie", "02/05", "Saturday",  "Stage 5", "Broc - Charmey",                  149.6),
-    ("Tour de Romandie", "03/05", "Sunday",    "Stage 6", "Lucens - Leysin",                178.2),
+    ("Tour de Romandie", "28/04", "Tuesday",   "Stage 1", "Villars-sur-Glâne - Villars-sur-Glâne", 3.0, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-1"),
+    ("Tour de Romandie", "29/04", "Wednesday", "Stage 2", "Martigny - Martigny",                 171.2, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-2"),
+    ("Tour de Romandie", "30/04", "Thursday",  "Stage 3", "Rue - Vucherens",                  173.1, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-3"),
+    ("Tour de Romandie", "01/05", "Friday",    "Stage 4", "Orbe - Orbe",                     176.6, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-4"),
+    ("Tour de Romandie", "02/05", "Saturday",  "Stage 5", "Broc - Charmey",                  149.6, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-5"),
+    ("Tour de Romandie", "03/05", "Sunday",    "Stage 6", "Lucens - Leysin",                178.2, "https://www.procyclingstats.com/race/tour-de-romandie/2026/stage-6"),
 ]
 
 VUELTA_2026_STAGES = [
@@ -526,7 +526,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_giro == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in GIRO_2026_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) > 6 else None) for r in GIRO_2026_STAGES],
             )
         existing_tdf = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Tour de France'"
@@ -534,7 +534,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_tdf == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_FRANCE_2026_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) > 6 else None) for r in TOUR_DE_FRANCE_2026_STAGES],
             )
         existing_romandie = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Tour de Romandie'"
@@ -542,7 +542,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_romandie == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in TOUR_DE_ROMANDIE_2026_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) > 6 else None) for r in TOUR_DE_ROMANDIE_2026_STAGES],
             )
         existing_vuelta = conn.execute(
             "SELECT count(*) FROM stages WHERE race_name = 'Vuelta a España'"
@@ -550,7 +550,7 @@ def init_stages_table(db_path: str) -> None:
         if existing_vuelta == 0:
             conn.executemany(
                 "INSERT INTO stages (race_name, date, day, stage_name, route, km, pcs_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(r[0], r[1], r[2], r[3], r[4], r[5], None) for r in VUELTA_2026_STAGES],
+                [(r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) > 6 else None) for r in VUELTA_2026_STAGES],
             )
     finally:
         conn.close()
