@@ -314,12 +314,16 @@ if view == "register":
             else:
                 with st.spinner(t("participant_recognizing")):
                     try:
-                        extracted = extract_riders_from_text(free_text.strip())
+                        # Pass rider names to ground the LLM's responses
+                        rider_names = [name for _, name, _, _ in _rider_rows]
+                        extracted = extract_riders_from_text(free_text.strip(), rider_names)
                     except RuntimeError as e:
                         st.error(str(e))
                         extracted = []
                 if extracted:
-                    matched_urls, not_found = match_riders_to_db(extracted, DB_PATH)
+                    # Pass pre-loaded rider rows to avoid redundant DB query
+                    rider_rows_for_matching = [(url, name) for url, name, _, _ in _rider_rows]
+                    matched_urls, not_found = match_riders_to_db(extracted, DB_PATH, rider_rows_for_matching)
                     existing = st.session_state[state_key]
                     already_in = set(existing)
                     new_urls = [u for u in matched_urls if u not in already_in]
@@ -329,7 +333,7 @@ if view == "register":
                         st.warning(
                             f"{len(not_found)} {t('participant_not_found')}: "
                             + ", ".join(f"**{n}**" for n in not_found)
-                            + ". {t('participant_add_manually')}"
+                            + f". {t('participant_add_manually')}"
                         )
                     st.rerun()
                 else:

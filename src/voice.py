@@ -2,6 +2,8 @@ import os
 import json
 import unicodedata
 import logging
+import difflib
+from typing import Optional
 
 from mistralai import Mistral
 
@@ -19,6 +21,7 @@ Extract the rider names and return ONLY a JSON object with this exact structure:
 Rules:
 - Return at most 15 rider names
 - Use the rider's full name where recognisable (e.g. "Pogacar" -> "Tadej Pogacar")
+- Match each name to the closest entry in this list: {rider_list}
 - Do not invent riders not mentioned
 - Ignore any non-rider text (greetings, race names, etc.)
 - Return ONLY the JSON object, no other text
@@ -30,9 +33,14 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
 
-def extract_riders_from_text(text: str) -> list[str]:
+def extract_riders_from_text(text: str, rider_names: Optional[list[str]] = None) -> list[str]:
     """
     Use Mistral to extract a list of rider names from freeform text.
+    
+    Args:
+        text: Freeform text containing rider names
+        rider_names: Optional list of known rider names to ground the LLM's responses
+    
     Returns a list of rider name strings (max 15).
     Raises RuntimeError if MISTRAL_API_KEY is not set.
     """
@@ -40,11 +48,20 @@ def extract_riders_from_text(text: str) -> list[str]:
     if not api_key:
         raise RuntimeError("MISTRAL_API_KEY is not set. Add it to your .env or Streamlit secrets.")
 
+    # Build the prompt with rider names if provided
+    system_prompt = _EXTRACTION_SYSTEM_PROMPT
+    if rider_names:
+        rider_list = ", ".join(rider_names[:200])  # Limit to first 200 to stay within context
+        system_prompt = system_prompt.replace("{rider_list}", rider_list)
+    else:
+        # Remove the placeholder if no rider names provided
+        system_prompt = system_prompt.replace("Match each name to the closest entry in this list: {rider_list}\n", "")
+
     client = Mistral(api_key=api_key)
     response = client.chat.complete(
         model=MISTRAL_MODEL,
         messages=[
-            {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ],
         response_format={"type": "json_object"},
@@ -60,10 +77,19 @@ def extract_riders_from_text(text: str) -> list[str]:
     return result.get("riders") or []
 
 
-def match_riders_to_db(extracted_names: list[str], db_path: str) -> tuple[list[str], list[str]]:
+def match_riders_to_db(
+    extracted_names: list[str], 
+    db_path: str,
+    rows: Optional[list[tuple[str, str]]] = None
+) -> tuple[list[str], list[str]]:
     """
     Fuzzy-match extracted rider names to rider_urls in the database.
-    Uses accent-insensitive normalization (same as the participant UI search).
+    Uses accent-insensitive normalization + difflib fuzzy matching.
+
+    Args:
+        extracted_names: List of rider names extracted from text
+        db_path: Path to the database
+        rows: Optional pre-loaded database rows (rider_url, name) to avoid redundant queries
 
     Returns:
         (matched_urls, not_found_names)
@@ -72,20 +98,28 @@ def match_riders_to_db(extracted_names: list[str], db_path: str) -> tuple[list[s
     """
     from src.db import _connect
 
-    conn = _connect(db_path, read_only=True)
-    try:
-        rows = conn.execute(
-            "SELECT rider_url, name FROM riders WHERE name IS NOT NULL"
-        ).fetchall()
-    finally:
-        conn.close()
+    # Load DB rows if not provided
+    if rows is None:
+        conn = _connect(db_path, read_only=True)
+        try:
+            rows = conn.execute(
+                "SELECT rider_url, name FROM riders WHERE name IS NOT NULL"
+            ).fetchall()
+        finally:
+            conn.close()
 
     # Build normalized lookup: norm_name -> rider_url (first match wins)
+    # Also keep original names for fuzzy matching
     norm_to_url: dict[str, str] = {}
+    name_to_url: dict[str, str] = {}
+    all_db_names: list[str] = []
+    
     for url, name in rows:
         norm = _normalize(name)
         if norm not in norm_to_url:
             norm_to_url[norm] = url
+            name_to_url[name] = url
+            all_db_names.append(name)
 
     matched_urls: list[str] = []
     not_found: list[str] = []
@@ -99,11 +133,38 @@ def match_riders_to_db(extracted_names: list[str], db_path: str) -> tuple[list[s
         if norm_spoken in norm_to_url:
             url = norm_to_url[norm_spoken]
         else:
-            # 2. Substring match: spoken name appears in DB name or vice versa
-            for norm_db, db_url in norm_to_url.items():
-                if norm_spoken in norm_db or norm_db in norm_spoken:
-                    url = db_url
-                    break
+            # 2. Try fuzzy matching with difflib
+            # First try with normalized names
+            norm_db_names = [_normalize(n) for n in all_db_names]
+            close_matches = difflib.get_close_matches(
+                norm_spoken, norm_db_names, n=1, cutoff=0.65
+            )
+            if close_matches:
+                matched_norm = close_matches[0]
+                url = norm_to_url.get(matched_norm)
+            
+            # 3. If no match, try token-sort for name order variants
+            # (e.g., "Van der Poel Mathieu" vs "Mathieu van der Poel")
+            if url is None:
+                sorted_spoken = sorted(norm_spoken.split())
+                for db_name in all_db_names:
+                    sorted_db = sorted(_normalize(db_name).split())
+                    if sorted_spoken and sorted_db:
+                        # Use SequenceMatcher for token-sorted comparison
+                        ratio = difflib.SequenceMatcher(
+                            None, sorted_spoken, sorted_db
+                        ).ratio()
+                        if ratio >= 0.65:
+                            url = name_to_url.get(db_name)
+                            break
+            
+            # 4. If still no match, try substring matching as fallback
+            # (for very short names like "Poel" matching "Mathieu van der Poel")
+            if url is None:
+                for norm_db, db_url in norm_to_url.items():
+                    if norm_spoken in norm_db or norm_db in norm_spoken:
+                        url = db_url
+                        break
 
         if url and url not in seen_urls:
             matched_urls.append(url)
