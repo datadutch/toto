@@ -357,8 +357,10 @@ if view == "register":
                     slots_left = 15 - len(existing)
                     st.session_state[state_key] = existing + new_urls[:slots_left]
                     if not_found:
+                        # Use startlist-specific message if a race is selected and has a startlist
+                        not_found_key = 'participant_not_found_startlist' if (selected_race and any(r for r in _rider_rows if r[1])) else 'participant_not_found'
                         st.warning(
-                            f"{len(not_found)} {t('participant_not_found')}: "
+                            f"{len(not_found)} {t(not_found_key)}: "
                             + ", ".join(f"**{n}**" for n in not_found)
                             + f". {t('participant_add_manually')}"
                         )
