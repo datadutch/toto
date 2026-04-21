@@ -207,7 +207,30 @@ def _load_rider_rows():
         conn.close()
     return rows
 
-_rider_rows = _load_rider_rows()  # list of (url, name, nationality, team_name)
+def _load_race_rider_rows(race_name: str):
+    """Load riders from startlist for a specific race"""
+    conn = _connect(DB_PATH, read_only=True)
+    try:
+        rows = conn.execute(
+            """SELECT s.rider_url, s.rider_name, r.nationality, r.team_name 
+               FROM startlists s 
+               JOIN riders r ON s.rider_url = r.rider_url
+               WHERE s.race_name = ? AND s.rider_name IS NOT NULL 
+               ORDER BY s.rider_name""", [race_name]
+        ).fetchall()
+    finally:
+        conn.close()
+    return rows
+
+# Use race-specific riders if a race is selected and has a startlist, otherwise use all riders
+if selected_race:
+    race_rider_rows = _load_race_rider_rows(selected_race)
+    if race_rider_rows:  # Use startlist if available
+        _rider_rows = race_rider_rows
+    else:  # Fallback to all riders if no startlist
+        _rider_rows = _load_rider_rows()
+else:
+    _rider_rows = _load_rider_rows()
 
 # Build lookups fresh every run — never cache derived/normalized data
 rider_options = {}   # label -> url
@@ -327,7 +350,7 @@ if view == "register":
                 if extracted:
                     # Pass pre-loaded rider rows to avoid redundant DB query
                     rider_rows_for_matching = [(url, name) for url, name, _, _ in _rider_rows]
-                    matched_urls, not_found = match_riders_to_db(extracted, DB_PATH, rider_rows_for_matching)
+                    matched_urls, not_found = match_riders_to_db(extracted, DB_PATH, rider_rows_for_matching, selected_race if selected_race else None)
                     existing = st.session_state[state_key]
                     already_in = set(existing)
                     new_urls = [u for u in matched_urls if u not in already_in]

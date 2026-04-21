@@ -124,7 +124,8 @@ def extract_riders_from_text(
 def match_riders_to_db(
     extracted_names: list[str], 
     db_path: str,
-    rows: Optional[list[tuple[str, str]]] = None
+    rows: Optional[list[tuple[str, str]]] = None,
+    race_name: Optional[str] = None
 ) -> tuple[list[str], list[str]]:
     """
     Fuzzy-match extracted rider names to rider_urls in the database.
@@ -134,6 +135,7 @@ def match_riders_to_db(
         extracted_names: List of rider names extracted from text
         db_path: Path to the database
         rows: Optional pre-loaded database rows (rider_url, name) to avoid redundant queries
+        race_name: Optional race name to filter riders from startlist only
 
     Returns:
         (matched_urls, not_found_names)
@@ -146,9 +148,17 @@ def match_riders_to_db(
     if rows is None:
         conn = _connect(db_path, read_only=True)
         try:
-            rows = conn.execute(
-                "SELECT rider_url, name FROM riders WHERE name IS NOT NULL"
-            ).fetchall()
+            if race_name:
+                # Only match riders from the startlist for this race
+                rows = conn.execute(
+                    "SELECT rider_url, rider_name FROM startlists WHERE race_name = ? AND rider_name IS NOT NULL"
+                    , [race_name]
+                ).fetchall()
+            else:
+                # Fallback to all riders if no race specified
+                rows = conn.execute(
+                    "SELECT rider_url, name FROM riders WHERE name IS NOT NULL"
+                ).fetchall()
         finally:
             conn.close()
 
