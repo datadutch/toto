@@ -2,6 +2,7 @@
 migrate_to_motherduck.py
 scraper.py
 prompts.md
+.github/prompts/
 
 # Virtual environments
 .venv/
