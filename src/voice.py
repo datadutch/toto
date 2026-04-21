@@ -51,8 +51,14 @@ def extract_riders_from_text(text: str, rider_names: Optional[list[str]] = None)
     # Build the prompt with rider names if provided
     system_prompt = _EXTRACTION_SYSTEM_PROMPT
     if rider_names:
-        rider_list = ", ".join(rider_names[:200])  # Limit to first 200 to stay within context
-        system_prompt = system_prompt.replace("{rider_list}", rider_list)
+        # Filter out None values and limit to first 200
+        valid_names = [n for n in rider_names[:200] if n]
+        if valid_names:
+            rider_list = ", ".join(valid_names)
+            system_prompt = system_prompt.replace("{rider_list}", rider_list)
+        else:
+            # Remove the placeholder if no valid rider names
+            system_prompt = system_prompt.replace("Match each name to the closest entry in this list: {rider_list}\n", "")
     else:
         # Remove the placeholder if no rider names provided
         system_prompt = system_prompt.replace("Match each name to the closest entry in this list: {rider_list}\n", "")
