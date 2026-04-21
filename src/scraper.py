@@ -82,6 +82,7 @@ def get_rider_profile(rider_url: str) -> Optional[dict]:
         return {
             "rider_url": rider_url,
             "name": data.get("name"),
+            "nickname": None,  # Nickname field added, can be populated manually
             "nationality": data.get("nationality"),
             "birthdate": data.get("birthdate"),
             "height": data.get("height"),

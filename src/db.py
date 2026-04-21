@@ -15,6 +15,7 @@ CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS riders (
     rider_url    VARCHAR PRIMARY KEY,
     name         VARCHAR,
+    nickname     VARCHAR,
     nationality  VARCHAR,
     birthdate    VARCHAR,
     height       FLOAT,
@@ -28,8 +29,8 @@ CREATE TABLE IF NOT EXISTS riders (
 DELETE_RIDER_SQL = "DELETE FROM riders WHERE rider_url = ?"
 
 INSERT_RIDER_SQL = """
-INSERT INTO riders (rider_url, name, nationality, birthdate, height, weight, team_name, team_url, scraped_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, now())
+INSERT INTO riders (rider_url, name, nickname, nationality, birthdate, height, weight, team_name, team_url, scraped_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())
 """
 
 
@@ -37,6 +38,15 @@ def init_db(db_path: str) -> duckdb.DuckDBPyConnection:
     """Open (or create) a DuckDB database and ensure the riders table exists."""
     conn = _connect(db_path)
     conn.execute(CREATE_TABLE_SQL)
+    
+    # Migration: add nickname column if it doesn't exist
+    try:
+        conn.execute("ALTER TABLE riders ADD COLUMN nickname VARCHAR")
+        logger.info("Added nickname column to riders table")
+    except Exception:
+        # Column already exists or other error - continue
+        pass
+    
     logger.info(f"Database ready at {db_path}")
     return conn
 
@@ -46,6 +56,7 @@ def upsert_rider(conn: duckdb.DuckDBPyConnection, rider: dict) -> None:
     values = [
         rider.get("rider_url"),
         rider.get("name"),
+        rider.get("nickname"),
         rider.get("nationality"),
         rider.get("birthdate"),
         rider.get("height"),
@@ -57,7 +68,7 @@ def upsert_rider(conn: duckdb.DuckDBPyConnection, rider: dict) -> None:
     conn.execute(INSERT_RIDER_SQL, values)
 
 
-def save_rider(db_path: str, rider_url: str, name: str, nationality: str, birthdate: str,
+def save_rider(db_path: str, rider_url: str, name: str, nickname: str, nationality: str, birthdate: str,
                height: Optional[float], weight: Optional[float], team_name: str, team_url: str) -> None:
     """Upsert a single rider via a standalone db_path connection."""
     conn = _connect(db_path)
@@ -65,6 +76,7 @@ def save_rider(db_path: str, rider_url: str, name: str, nationality: str, birthd
         upsert_rider(conn, {
             "rider_url": rider_url,
             "name": name,
+            "nickname": nickname or None,
             "nationality": nationality or None,
             "birthdate": birthdate or None,
             "height": height,
