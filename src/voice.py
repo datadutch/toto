@@ -33,13 +33,18 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
 
-def extract_riders_from_text(text: str, rider_names: Optional[list[str]] = None) -> list[str]:
+def extract_riders_from_text(
+    text: str, 
+    rider_names: Optional[list[str]] = None,
+    db_rows: Optional[list[tuple[str, str]]] = None
+) -> list[str]:
     """
     Use Mistral to extract a list of rider names from freeform text.
     
     Args:
         text: Freeform text containing rider names
         rider_names: Optional list of known rider names to ground the LLM's responses
+        db_rows: Optional list of (rider_url, name) tuples for validation/re-matching
     
     Returns a list of rider name strings (max 15).
     Raises RuntimeError if MISTRAL_API_KEY is not set.
@@ -51,8 +56,14 @@ def extract_riders_from_text(text: str, rider_names: Optional[list[str]] = None)
     # Build the prompt with rider names if provided
     system_prompt = _EXTRACTION_SYSTEM_PROMPT
     if rider_names:
-        rider_list = ", ".join(rider_names[:200])  # Limit to first 200 to stay within context
-        system_prompt = system_prompt.replace("{rider_list}", rider_list)
+        # Filter out None values and limit to first 200
+        valid_names = [n for n in rider_names[:200] if n]
+        if valid_names:
+            rider_list = ", ".join(valid_names)
+            system_prompt = system_prompt.replace("{rider_list}", rider_list)
+        else:
+            # Remove the placeholder if no valid rider names
+            system_prompt = system_prompt.replace("Match each name to the closest entry in this list: {rider_list}\n", "")
     else:
         # Remove the placeholder if no rider names provided
         system_prompt = system_prompt.replace("Match each name to the closest entry in this list: {rider_list}\n", "")
@@ -74,7 +85,40 @@ def extract_riders_from_text(text: str, rider_names: Optional[list[str]] = None)
         logger.warning(f"Mistral returned invalid JSON: {content!r} — {exc}")
         result = {}
 
-    return result.get("riders") or []
+    extracted = result.get("riders") or []
+    
+    # If we have DB rows, validate extracted names and try to match unmatched ones
+    if db_rows and extracted:
+        # Build lookup
+        name_to_url = {name: url for url, name in db_rows if name}
+        all_db_names = [name for _, name in db_rows if name]
+        norm_to_url = {_normalize(name): url for url, name in db_rows if name}
+        
+        validated = []
+        for name in extracted[:15]:
+            # Check if the extracted name is in the DB (exact or normalized match)
+            norm_name = _normalize(name)
+            if name in name_to_url or norm_name in norm_to_url:
+                validated.append(name)
+            else:
+                # The LLM returned a name not in DB - try fuzzy match against DB names
+                norm_db_names = [_normalize(n) for n in all_db_names]
+                close_matches = difflib.get_close_matches(norm_name, norm_db_names, n=1, cutoff=0.6)
+                if close_matches:
+                    # Use the matched DB name instead
+                    matched_norm = close_matches[0]
+                    # Find the original name with this normalized form
+                    for db_url, db_name in db_rows:
+                        if _normalize(db_name) == matched_norm and db_name:
+                            validated.append(db_name)
+                            break
+                else:
+                    # Keep the extracted name (will be caught as not_found in match_riders_to_db)
+                    validated.append(name)
+        
+        return validated
+    
+    return extracted
 
 
 def match_riders_to_db(
