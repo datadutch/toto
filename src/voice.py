@@ -124,7 +124,7 @@ def extract_riders_from_text(
 def match_riders_to_db(
     extracted_names: list[str], 
     db_path: str,
-    rows: Optional[list[tuple[str, str]]] = None,
+    rows: Optional[list[tuple[str, str, Optional[str]]]] = None,
     race_name: Optional[str] = None
 ) -> tuple[list[str], list[str]]:
     """
@@ -151,29 +151,42 @@ def match_riders_to_db(
             if race_name:
                 # Only match riders from the startlist for this race
                 rows = conn.execute(
-                    "SELECT rider_url, rider_name FROM startlists WHERE race_name = ? AND rider_name IS NOT NULL"
+                    "SELECT rider_url, rider_name, nickname FROM startlists s JOIN riders r ON s.rider_url = r.rider_url WHERE race_name = ? AND rider_name IS NOT NULL"
                     , [race_name]
                 ).fetchall()
             else:
                 # Fallback to all riders if no race specified
                 rows = conn.execute(
-                    "SELECT rider_url, name FROM riders WHERE name IS NOT NULL"
+                    "SELECT rider_url, name, nickname FROM riders WHERE name IS NOT NULL"
                 ).fetchall()
         finally:
             conn.close()
 
     # Build normalized lookup: norm_name -> rider_url (first match wins)
-    # Also keep original names for fuzzy matching
+    # Also keep original names and nicknames for fuzzy matching
     norm_to_url: dict[str, str] = {}
     name_to_url: dict[str, str] = {}
     all_db_names: list[str] = []
     
-    for url, name in rows:
-        norm = _normalize(name)
-        if norm not in norm_to_url:
-            norm_to_url[norm] = url
+    for row in rows:
+        url = row[0]
+        name = row[1]
+        nickname = row[2] if len(row) > 2 else None
+        
+        # Add name to lookup
+        norm_name = _normalize(name)
+        if norm_name not in norm_to_url:
+            norm_to_url[norm_name] = url
             name_to_url[name] = url
             all_db_names.append(name)
+        
+        # Add nickname to lookup if it exists
+        if nickname:
+            norm_nickname = _normalize(nickname)
+            if norm_nickname not in norm_to_url:
+                norm_to_url[norm_nickname] = url
+                name_to_url[nickname] = url
+                all_db_names.append(nickname)
 
     matched_urls: list[str] = []
     not_found: list[str] = []

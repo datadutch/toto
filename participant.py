@@ -201,7 +201,7 @@ def _load_rider_rows():
     conn = _connect(DB_PATH, read_only=True)
     try:
         rows = conn.execute(
-            "SELECT rider_url, name, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
+            "SELECT rider_url, name, nickname, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
         ).fetchall()
     finally:
         conn.close()
@@ -212,7 +212,7 @@ def _load_race_rider_rows(race_name: str):
     conn = _connect(DB_PATH, read_only=True)
     try:
         rows = conn.execute(
-            """SELECT s.rider_url, s.rider_name, r.nationality, r.team_name 
+            """SELECT s.rider_url, s.rider_name, r.nickname, r.nationality, r.team_name 
                FROM startlists s 
                JOIN riders r ON s.rider_url = r.rider_url
                WHERE s.race_name = ? AND s.rider_name IS NOT NULL 
@@ -349,7 +349,8 @@ if view == "register":
                         extracted = []
                 if extracted:
                     # Pass pre-loaded rider rows to avoid redundant DB query
-                    rider_rows_for_matching = [(url, name) for url, name, _, _ in _rider_rows]
+                    # Include nicknames in the format (url, name, nickname)
+                    rider_rows_for_matching = [(url, name, nickname) for url, name, nickname, _, _ in _rider_rows]
                     matched_urls, not_found = match_riders_to_db(extracted, DB_PATH, rider_rows_for_matching, selected_race if selected_race else None)
                     existing = st.session_state[state_key]
                     already_in = set(existing)
