@@ -311,16 +311,17 @@ if _admin and _admin.get("email"):
         "auto_login": "true",
     }
 
-    full_url = f"{participant_url}?{urllib.parse.urlencode(params)}"
-
-    if _col_middle.button(f"👥 {t('participant_app')}", use_container_width=True):
+    full_participant_url = f"{participant_url}?{urllib.parse.urlencode(params)}"
+    
+    # Use st.link_button for better styling (Streamlit 1.25+)
+    # Note: st.link_button opens in same tab by default
+    if hasattr(st, 'link_button'):
+        st.link_button(f"👥 {t('participant_app')}", full_participant_url, help="Naar deelnemer app", use_container_width=True)
+    else:
         st.markdown(
-            f"""
-            <script>
-                window.location.href = {full_url!r};
-            </script>
-            """,
+            f'<a href="{full_participant_url}" target="_self" style="display: inline-block; width: 100%; text-align: center;">� {t("participant_app")}</a>',
             unsafe_allow_html=True,
+            help="Naar deelnemer app"
         )
 
 if _col_logout.button(t("logout"), key="admin_logout"):

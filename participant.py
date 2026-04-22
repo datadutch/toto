@@ -124,11 +124,12 @@ if st.session_state.account is not None:
             full_admin_url = f"{admin_url}?{urllib.parse.urlencode(admin_params)}"
             
             # Use st.link_button for better styling (Streamlit 1.25+)
+            # Note: st.link_button opens in same tab by default
             if hasattr(st, 'link_button'):
                 st.link_button("👑 Admin", full_admin_url, help="Naar admin paneel", use_container_width=True)
             else:
                 st.markdown(
-                    f'[👑 Admin]({full_admin_url})',
+                    f'<a href="{full_admin_url}" target="_self" style="display: inline-block; width: 100%; text-align: center;">👑 Admin</a>',
                     unsafe_allow_html=True,
                     help="Naar admin paneel"
                 )
