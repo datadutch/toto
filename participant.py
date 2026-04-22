@@ -147,8 +147,13 @@ if st.session_state.account is None:
         st.rerun()
     else:
         st.info(t("participant_no_account"))
-        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan")
-        if name_input.strip():
+        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input")
+        
+        # Real-time validation for username length
+        if name_input.strip() and len(name_input.strip()) > 50:
+            st.error(t("participant_error_username_length"))
+        
+        if name_input.strip() and len(name_input.strip()) <= 50:
             if st.button(t("participant_create_account"), width="stretch"):
                 account = create_account(DB_PATH, email_input.strip(), name_input.strip())
                 st.session_state.account = account
@@ -322,7 +327,11 @@ if view == "register":
             st.info(f"✏️ {t('participant_existing_team_warning')}**{prefill_team_name}**. {t('participant_overwrite_warning')}")
 
         # ── Team name ─────────────────────────────────────────────────────────────────────────────
-        team_name = st.text_input(t("participant_team_name"), value=prefill_team_name, placeholder="e.g. Team Velodutch", key="team_name_input")
+        team_name = st.text_input(t("participant_team_name"), value=prefill_team_name, placeholder="e.g. Team Velodutch (max 50 chars)", key="team_name_input")
+        
+        # Real-time validation for team name length
+        if team_name.strip() and len(team_name.strip()) > 50:
+            st.error(t("participant_error_team_name_length"))
 
         st.divider()
 
@@ -493,8 +502,6 @@ if view == "register":
             errors = []
             if not team_name.strip():
                 errors.append(t("participant_error_team_name"))
-            if len(team_name.strip()) > 50:
-                errors.append(t("participant_error_team_name_length"))
             if len(selected_urls) == 0:
                 errors.append(t("participant_error_min_riders"))
             if not is_registration_open(DB_PATH, selected_race):
