@@ -199,9 +199,18 @@ st.sidebar.markdown(f"_{account['email']}_")
 
 # Change name modal/dialog
 if st.session_state.get("show_change_name", False):
-    # Simplified modal with better layout
+    # Full overlay to block the rest of the website
     st.markdown("""
     <style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+    }
     .modal-container {
         position: fixed;
         top: 50%;
@@ -221,13 +230,12 @@ if st.session_state.get("show_change_name", False):
         margin-bottom: 20px;
         font-size: 24px;
     }
-    .button-container {
-        display: flex;
-        gap: 10px;
-        margin-top: 20px;
-    }
     </style>
     """, unsafe_allow_html=True)
+    
+    # Create overlay and modal container
+    st.markdown('<div class="modal-overlay"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="modal-container">', unsafe_allow_html=True)
     
     # Modal title
     st.markdown('<h2 class="modal-title">📝 Verander je naam</h2>', unsafe_allow_html=True)
@@ -260,6 +268,9 @@ if st.session_state.get("show_change_name", False):
             st.rerun()
         else:
             st.error(t("participant_name_change_error"))
+    
+    # Close modal container
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
