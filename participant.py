@@ -390,7 +390,20 @@ if view == "register":
         progress = len(selected_urls) / 15.0
         st.progress(progress)
 
-        search_query = st.text_input(f"🔍 {t('participant_search_rider')}", placeholder=t("participant_search_rider"), key="rider_search")
+        # Use session state to control search input so we can clear it
+        if "search_query" not in st.session_state:
+            st.session_state.search_query = ""
+        if "search_key" not in st.session_state:
+            st.session_state.search_key = 0
+        
+        search_query = st.text_input(
+            f"🔍 {t('participant_search_rider')}", 
+            placeholder=t("participant_search_rider"), 
+            key=f"rider_search_{st.session_state.search_key}",
+            value=st.session_state.search_query
+        )
+        # Update session state with current search query
+        st.session_state.search_query = search_query
 
         # Two column layout for search boxes
         col1, col2 = st.columns(2, gap="large")
@@ -427,6 +440,9 @@ if view == "register":
                 )
                 if st.button(f"➕ {t('participant_add_rider')}", width="stretch", key="btn_add_rider_startlist"):
                     st.session_state[state_key].append(startlist_available[add_label])
+                    # Clear search box after adding rider
+                    st.session_state.search_key += 1
+                    st.session_state.search_query = ""
                     st.rerun()
             else:
                 # Check if the rider is missing because already selected
@@ -473,6 +489,13 @@ if view == "register":
                     general_url_to_label[_url] = _label
                     general_url_to_norm[_url] = _normalize(_name)
             
+            # Add all general riders to the unified url_to_label lookup after the loop
+            # This ensures that riders from general database are properly displayed
+            for _url, _name, _nickname, _nat, _team in all_rider_rows:
+                _label = f"{_name} ({_nat or '?'}) 德华 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+                if _url not in url_to_label:  # Don't overwrite startlist entries
+                    url_to_label[_url] = _label
+
             # Show info if no riders are available in general database (all are in startlist)
             if not general_rider_options:
                 st.info("Alle renners uit de algemene database zitten al in de startlijst.")
@@ -506,6 +529,9 @@ if view == "register":
                 )
                 if st.button(f"➕ {t('participant_add_rider')}", width="stretch", key="btn_add_rider_general"):
                     st.session_state[state_key].append(general_available[add_label])
+                    # Clear search box after adding rider
+                    st.session_state.search_key += 1
+                    st.session_state.search_query = ""
                     st.rerun()
             else:
                 # Check if the rider is missing because already selected
