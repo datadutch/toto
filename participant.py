@@ -61,19 +61,7 @@ def t(key):
     """Translate a key to the current language"""
     return TRANSLATIONS[st.session_state.language].get(key, key)
 
-# Title with logout button on the right
-col_title, col_logout_header = st.columns([4, 1])
-with col_title:
-    st.title(f"🚴 {t('participant_welcome')}")
-
-with col_logout_header:
-    if not _is_guest:
-        # On Streamlit Cloud, logout is handled by the platform
-        st.markdown("[🚪](?logout=true)", unsafe_allow_html=True)
-    else:
-        if st.button("🚪", key="btn_logout_header", help="Uitloggen"):
-            st.session_state.account = None
-            st.rerun()
+st.title(f"🚴 {t('participant_welcome')}")
 
 if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
     st.error("Database not found. Ask the administrator to run the scraper first.")
@@ -95,6 +83,21 @@ if "account" not in st.session_state:
 # ── Initialize view state ──────────────────────────────────────────────────────
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
+
+# Add logout button in header (after _is_guest is defined)
+if st.session_state.account is not None:
+    col_title, col_logout_header = st.columns([4, 1])
+    with col_title:
+        # Title was already set above, just add spacing
+        st.write("")  # Add some space
+    with col_logout_header:
+        if not _is_guest:
+            # On Streamlit Cloud, logout is handled by the platform
+            st.markdown("[🚪](?logout=true)", unsafe_allow_html=True)
+        else:
+            if st.button("🚪", key="btn_logout_header", help="Uitloggen"):
+                st.session_state.account = None
+                st.rerun()
 
 # ── Language Selector (Sidebar - At Top) ──────────────────────────────────────
 st.sidebar.selectbox(
