@@ -168,20 +168,11 @@ account = st.session_state.account
 # ── Sidebar separator (only visible when logged in) ───────────────────────────
 st.sidebar.markdown("---")
 
-col_welcome, col_change_name, col_logout = st.columns([3, 2, 1])
-col_welcome.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
+st.sidebar.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
+# ── Sidebar separator (only visible when logged in) ───────────────────────────
+st.sidebar.markdown("---")
 
-# Change name button
-if col_change_name.button(f"📝 {t('participant_change_name')}"):
-    st.session_state.show_change_name = True
-
-if not _is_guest:
-    # On Streamlit Cloud, logout is handled by the platform
-    col_logout.markdown("[Uitloggen](?logout=true)", unsafe_allow_html=False)
-else:
-    if col_logout.button("Uitloggen"):
-        st.session_state.account = None
-        st.rerun()
+st.sidebar.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
 
 # Change name modal/dialog
 if st.session_state.get("show_change_name", False):
@@ -210,6 +201,22 @@ if st.session_state.get("show_change_name", False):
             st.rerun()
         else:
             st.error(t("participant_name_change_error"))
+
+# Action buttons - Change name and Logout (main content, not sidebar)
+col_change_name, col_logout = st.columns([1, 1])
+
+# Change name button - always visible in main content
+if col_change_name.button(f"📝 {t('participant_change_name')}", key="btn_change_name", help=t('participant_change_name')):
+    st.session_state.show_change_name = True
+
+# Logout button in main content
+if not _is_guest:
+    # On Streamlit Cloud, logout is handled by the platform
+    col_logout.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
+else:
+    if col_logout.button("🚪 Uitloggen", key="btn_logout", help="Uitloggen"):
+        st.session_state.account = None
+        st.rerun()
 
 st.divider()
 
