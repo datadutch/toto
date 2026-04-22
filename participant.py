@@ -421,7 +421,50 @@ if view == "register":
             if _already:
                 st.caption(f"✅ {t('participant_already_selected')}: **{', '.join(_already)}**")
             else:
-                st.caption(t("participant_no_riders_found"))
+                # If using startlist and no results found, check if rider exists in general database
+                using_startlist = selected_race and race_rider_rows and any(r for r in race_rider_rows if r[1])
+                
+                if using_startlist:
+                    # We're using a startlist, check general database
+                    try:
+                        conn = _connect(DB_PATH, read_only=True)
+                        # Search in general database
+                        db_rows = conn.execute(
+                            "SELECT rider_url, name, nickname, nationality, team_name FROM riders WHERE name IS NOT NULL"
+                        ).fetchall()
+                        conn.close()
+                        
+                        # Build searchable list from general database
+                        general_rider_options = {}
+                        general_url_to_label = {}
+                        general_url_to_norm = {}
+                        
+                        for _url, _name, _nickname, _nat, _team in db_rows:
+                            _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+                            general_rider_options[_label] = _url
+                            general_url_to_label[_url] = _label
+                            general_url_to_norm[_url] = _normalize(_name)
+                        
+                        # Check if rider exists in general database
+                        general_available = {
+                            label: url
+                            for label, url in general_rider_options.items()
+                            if url not in selected_urls and _norm_query in general_url_to_norm.get(url, "")
+                        }
+                        
+                        if general_available:
+                            # Rider exists in database but not in current startlist
+                            rider_names = [general_url_to_label[url].split(" (")[0] for url in general_available.keys()]
+                            st.caption(f"🔍 {t('participant_not_found_startlist')}: **{', '.join(rider_names)}**. {t('participant_add_manually')}")
+                        else:
+                            st.caption(t("participant_no_riders_found"))
+                    except Exception as e:
+                        st.error(f"Error searching database: {e}")
+                        st.caption(t("participant_no_riders_found"))
+                else:
+                    # Not using startlist, so search should have found riders in general database
+                    # If we get here, the rider is truly not in the database
+                    st.caption(t("participant_no_riders_found"))
 
         # ── Selected riders list ──────────────────────────────────────────────────────
         if selected_urls:
