@@ -4,6 +4,7 @@ scraper.py
 prompts.md
 .github/prompts/
 mac/
+unused_analysis.md
 
 # Virtual environments
 .venv/
