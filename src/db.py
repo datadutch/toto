@@ -280,6 +280,19 @@ def set_admin_status(db_path: str, email: str, is_admin: str) -> bool:
         conn.close()
 
 
+def update_account_name(db_path: str, account_id: int, new_name: str) -> bool:
+    """Update the name of an account. Returns True if account was found and updated."""
+    conn = _connect(db_path)
+    try:
+        result = conn.execute(
+            "UPDATE accounts SET name = ? WHERE id = ?",
+            [new_name.strip(), account_id],
+        )
+        return result.rowcount > 0
+    finally:
+        conn.close()
+
+
 def load_fantasy_teams(db_path: str, race_name: str = None) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:

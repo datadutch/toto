@@ -11,6 +11,7 @@ from src.db import (
     get_account_by_email, create_account,
     _connect, load_races, is_registration_open,
     load_stages, load_stage_results, calculate_scores,
+    update_account_name,
 )
 from src.voice import extract_riders_from_text, match_riders_to_db
 
@@ -167,8 +168,13 @@ account = st.session_state.account
 # ── Sidebar separator (only visible when logged in) ───────────────────────────
 st.sidebar.markdown("---")
 
-col_welcome, col_logout = st.columns([4, 1])
+col_welcome, col_change_name, col_logout = st.columns([3, 2, 1])
 col_welcome.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
+
+# Change name button
+if col_change_name.button(f"📝 {t('participant_change_name')}"):
+    st.session_state.show_change_name = True
+
 if not _is_guest:
     # On Streamlit Cloud, logout is handled by the platform
     col_logout.markdown("[Uitloggen](?logout=true)", unsafe_allow_html=False)
@@ -176,6 +182,34 @@ else:
     if col_logout.button("Uitloggen"):
         st.session_state.account = None
         st.rerun()
+
+# Change name modal/dialog
+if st.session_state.get("show_change_name", False):
+    st.divider()
+    st.subheader(f"📝 {t('participant_change_name')}")
+    new_name = st.text_input(t("participant_new_name"), placeholder="e.g. Johan (max 50 chars)", key="new_name_input")
+    
+    # Real-time validation for new name length
+    if new_name.strip() and len(new_name.strip()) > 50:
+        st.error(t("participant_error_username_length"))
+    
+    col1, col2 = st.columns([1, 1])
+    if col1.button(t("participant_cancel")):
+        st.session_state.show_change_name = False
+        st.rerun()
+    
+    if col2.button(t("participant_save"), type="primary") and new_name.strip() and len(new_name.strip()) <= 50:
+        # Update the name in the database
+        success = update_account_name(DB_PATH, account["id"], new_name.strip())
+        if success:
+            # Update the account in session state
+            account["name"] = new_name.strip()
+            st.session_state.account = account
+            st.success(t("participant_name_changed_success"))
+            st.session_state.show_change_name = False
+            st.rerun()
+        else:
+            st.error(t("participant_name_change_error"))
 
 st.divider()
 
