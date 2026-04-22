@@ -65,23 +65,11 @@ def t(key):
 # Create columns for title and login button
 col_title, col_login = st.columns([4, 1])
 with col_title:
-    st.title(f"🚴 {t('participant_welcome')}")
+    st.title(f"🚴 {t("participant_welcome")}")
 
-# Add login button in the header (only after session state is initialized)
+# Remove login button from header as it's not needed
 with col_login:
-    # Check if account is in session state, if not, user is not logged in
-    if "account" not in st.session_state or st.session_state.account is None:
-        if st.button("🚪 Inloggen", key="btn_login_header", help="Inloggen"):
-            # Scroll to login section
-            st.markdown(
-                """
-                <script>
-                    document.querySelector('[data-testid="stTextInput"]').scrollIntoView();
-                </script>
-                """,
-                unsafe_allow_html=True
-            )
-
+    st.write("")  # Empty space to maintain layout
 if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
     st.error("Database not found. Ask the administrator to run the scraper first.")
     st.stop()
