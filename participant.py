@@ -199,20 +199,44 @@ st.sidebar.markdown(f"_{account['email']}_")
 
 # Change name modal/dialog
 if st.session_state.get("show_change_name", False):
+    # Enhanced modal-style dialog with better UI
     st.divider()
-    st.subheader(f"📝 {t('participant_change_name')}")
-    new_name = st.text_input(t("participant_new_name"), placeholder="e.g. Johan (max 50 chars)", key="new_name_input")
+    
+    # Modal container with styling
+    st.markdown("""
+    <style>
+    .name-change-modal {
+        background-color: #f0f2f6;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class='name-change-modal'>
+        <h3>📝 {t('participant_change_name')}</h3>
+    """, unsafe_allow_html=True)
+    
+    new_name = st.text_input(
+        t("participant_new_name"), 
+        placeholder="e.g. Johan (max 50 chars)", 
+        key="new_name_input",
+        label_visibility="collapsed"
+    )
     
     # Real-time validation for new name length
     if new_name.strip() and len(new_name.strip()) > 50:
         st.error(t("participant_error_username_length"))
     
-    col1, col2 = st.columns([1, 1])
-    if col1.button(t("participant_cancel")):
+    # Action buttons
+    col1, col2, col3 = st.columns([1, 1, 4])  # Added spacing
+    if col1.button(t("participant_cancel"), use_container_width=True):
         st.session_state.show_change_name = False
         st.rerun()
     
-    if col2.button(t("participant_save"), type="primary") and new_name.strip() and len(new_name.strip()) <= 50:
+    if col2.button(t("participant_save"), type="primary", use_container_width=True) and new_name.strip() and len(new_name.strip()) <= 50:
         # Update the name in the database
         success = update_account_name(DB_PATH, account["id"], new_name.strip())
         if success:
@@ -224,6 +248,8 @@ if st.session_state.get("show_change_name", False):
             st.rerun()
         else:
             st.error(t("participant_name_change_error"))
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 
