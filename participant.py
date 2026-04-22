@@ -93,9 +93,9 @@ if st.session_state.account is not None:
     with col_logout_header:
         if not _is_guest:
             # On Streamlit Cloud, logout is handled by the platform
-            st.markdown("[🚪](?logout=true)", unsafe_allow_html=True)
+            st.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
         else:
-            if st.button("🚪", key="btn_logout_header", help="Uitloggen"):
+            if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
                 st.session_state.account = None
                 st.rerun()
 
