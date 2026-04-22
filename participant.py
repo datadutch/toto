@@ -1,5 +1,6 @@
 ﻿import os
 import json
+import re
 import unicodedata
 import pandas as pd
 import streamlit as st
@@ -130,6 +131,12 @@ if st.session_state.account is None:
     email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
 
     if not email_input.strip():
+        st.stop()
+
+    # Validate email format
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email_input.strip()):
+        st.error(t("participant_invalid_email"))
         st.stop()
 
     account = get_account_by_email(DB_PATH, email_input.strip())
