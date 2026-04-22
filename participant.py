@@ -450,6 +450,8 @@ if view == "register":
             errors = []
             if not team_name.strip():
                 errors.append(t("participant_error_team_name"))
+            if len(team_name.strip()) > 50:
+                errors.append(t("participant_error_team_name_length"))
             if len(selected_urls) == 0:
                 errors.append(t("participant_error_min_riders"))
             if not is_registration_open(DB_PATH, selected_race):
