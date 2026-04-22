@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import re
 import unicodedata
@@ -298,7 +298,7 @@ url_to_label = {}    # url -> label
 _url_to_norm = {}    # url -> normalized name
 _selected_set = set()  # for fast O(1) lookup later
 for _url, _name, _nickname, _nat, _team in _rider_rows:
-    _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+    _label = f"{_name} ({_nat or '?'})  {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
     rider_options[_label] = _url
     url_to_label[_url] = _label
     _url_to_norm[_url] = _normalize(_name)
@@ -383,152 +383,140 @@ if view == "register":
 
         st.divider()
 
-        # ── Free-text rider input ───────────────────────────────────────────────────
-        st.markdown(f"**📝 {t('participant_free_text_header')}**")
-        st.caption(t("participant_free_text_desc"))
-        free_text = st.text_area(
-            t("participant_riders_label"),
-            placeholder=t("participant_riders_placeholder"),
-            height=100,
-            key="free_text_riders",
-            label_visibility="collapsed",
-        )
-        
-        # Always show the recognize button
-        if st.button(f"🔍 {t('participant_recognize')}", key="btn_extract_riders"):
-            if not free_text.strip():
-                st.warning(t("participant_search_hint"))
-            else:
-                with st.spinner(t("participant_recognizing")):
-                    try:
-                        # Pass rider names and rows to ground the LLM's responses and validate
-                        # Filter out None values
-                        rider_names = [name for _, name, _, _, _ in _rider_rows if name]
-                        rider_rows_for_extraction = [(url, name) for url, name, _, _, _ in _rider_rows if name]
-                        extracted = extract_riders_from_text(
-                            free_text.strip(), rider_names, rider_rows_for_extraction
-                        )
-                    except RuntimeError as e:
-                        st.error(str(e))
-                        extracted = []
-                if extracted:
-                    # Pass pre-loaded rider rows to avoid redundant DB query
-                    # Include nicknames in the format (url, name, nickname)
-                    rider_rows_for_matching = [(url, name, nickname) for url, name, nickname, _, _ in _rider_rows]
-                    matched_urls, not_found = match_riders_to_db(extracted, DB_PATH, rider_rows_for_matching, selected_race if selected_race else None)
-                    existing = st.session_state[state_key]
-                    already_in = set(existing)
-                    new_urls = [u for u in matched_urls if u not in already_in]
-                    slots_left = 15 - len(existing)
-                    added_any = len(new_urls) > 0
-                    st.session_state[state_key] = existing + new_urls[:slots_left]
-                    if not_found:
-                        # Use startlist-specific message if we're using race-specific riders (startlist)
-                        # Check if race_rider_rows was used and is not empty
-                        using_startlist = selected_race and race_rider_rows and any(r for r in race_rider_rows if r[1])
-                        not_found_key = 'participant_not_found_startlist' if using_startlist else 'participant_not_found'
-                        st.warning(
-                            f"{len(not_found)} {t(not_found_key)}: "
-                            + ", ".join(f"**{n}**" for n in not_found)
-                            + f". {t('participant_add_manually')}"
-                        )
-                    # Only rerun if we actually added new riders
-                    if added_any:
-                        st.rerun()
-                else:
-                    st.warning(t("participant_no_riders_recognized"))
+        # ── Dual Search Boxes for Rider Selection ──────────────────────────────────
+        st.markdown(f"### 👥 {t('participant_verify_selection')} — {len(selected_urls)} / 15 {t('participant_selected_count')}")
 
-        st.divider()
-
-        # ── Rider search + add (corrections) ────────────────────────────────────────
-        st.markdown(f"**{t('participant_verify_selection')}** — {len(selected_urls)} / 15 {t('participant_selected_count')}")
+        # Show progress bar
+        progress = len(selected_urls) / 15.0
+        st.progress(progress)
 
         search_query = st.text_input(f"🔍 {t('participant_search_rider')}", placeholder=t("participant_search_rider"), key="rider_search")
 
-        # Filter rider options by search query (name only, accent-insensitive), exclude already selected
-        _norm_query = _normalize(search_query) if search_query else ""
-        available = {
-            label: url
-            for label, url in rider_options.items()
-            if url not in selected_urls and (
-                not search_query or _norm_query in _url_to_norm.get(url, "")
-            )
-        }
+        # Two column layout for search boxes
+        col1, col2 = st.columns(2, gap="large")
 
-        if len(selected_urls) >= 15:
-            st.info(t("participant_max_riders"))
-        elif not search_query:
-            st.caption(t("participant_search_hint"))
-        elif available:
-            _available_items = list(available.items())
-            if len(_available_items) > 20:
-                st.caption(f"{t('participant_many_results')} ({len(_available_items)}) — {t('participant_refine_search')}")
-                _available_items = _available_items[:20]
-            _available_labels = [label for label, _ in _available_items]
-            add_label = st.radio(
-                t("participant_add_rider"),
-                options=_available_labels,
-                index=0,
-                key="rider_add_select",
-                label_visibility="collapsed",
-            )
-            if st.button(f"➕ {t('participant_add_rider')}", width="stretch", key="btn_add_rider"):
-                st.session_state[state_key].append(available[add_label])
-                st.rerun()
-        else:
-            # Check if the rider is missing because already selected
-            _already = [
-                url_to_label.get(url, url).split(" (")[0]
-                for url in selected_urls
-                if _norm_query in _url_to_norm.get(url, "")
-            ]
-            if _already:
-                st.caption(f"✅ {t('participant_already_selected')}: **{', '.join(_already)}**")
+        with col1:
+            st.markdown(f"#### 📋 {t('startlist')}")
+            
+            # Filter rider options by search query (name only, accent-insensitive), exclude already selected
+            _norm_query = _normalize(search_query) if search_query else ""
+            startlist_available = {
+                label: url
+                for label, url in rider_options.items()
+                if url not in selected_urls and (
+                    not search_query or _norm_query in _url_to_norm.get(url, "")
+                )
+            }
+
+            if len(selected_urls) >= 15:
+                st.info(t("participant_max_riders"))
+            elif not search_query:
+                st.caption(t("participant_search_hint"))
+            elif startlist_available:
+                _available_items = list(startlist_available.items())
+                if len(_available_items) > 20:
+                    st.caption(f"{t('participant_many_results')} ({len(_available_items)}) — {t('participant_refine_search')}")
+                    _available_items = _available_items[:20]
+                _available_labels = [label for label, _ in _available_items]
+                add_label = st.radio(
+                    t("participant_add_rider"),
+                    options=_available_labels,
+                    index=0,
+                    key="rider_add_select_startlist",
+                    label_visibility="collapsed",
+                )
+                if st.button(f"➕ {t('participant_add_rider')}", width="stretch", key="btn_add_rider_startlist"):
+                    st.session_state[state_key].append(startlist_available[add_label])
+                    st.rerun()
             else:
-                # If using startlist and no results found, check if rider exists in general database
-                using_startlist = selected_race and race_rider_rows and any(r for r in race_rider_rows if r[1])
-                
-                if using_startlist:
-                    # We're using a startlist, check general database
-                    try:
-                        conn = _connect(DB_PATH, read_only=True)
-                        # Search in general database
-                        db_rows = conn.execute(
-                            "SELECT rider_url, name, nickname, nationality, team_name FROM riders WHERE name IS NOT NULL"
-                        ).fetchall()
-                        conn.close()
-                        
-                        # Build searchable list from general database
-                        general_rider_options = {}
-                        general_url_to_label = {}
-                        general_url_to_norm = {}
-                        
-                        for _url, _name, _nickname, _nat, _team in db_rows:
-                            _label = f"{_name} ({_nat or '?'}) \u2014 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
-                            general_rider_options[_label] = _url
-                            general_url_to_label[_url] = _label
-                            general_url_to_norm[_url] = _normalize(_name)
-                        
-                        # Check if rider exists in general database
-                        general_available = {
-                            label: url
-                            for label, url in general_rider_options.items()
-                            if url not in selected_urls and _norm_query in general_url_to_norm.get(url, "")
-                        }
-                        
-                        if general_available:
-                            # Rider exists in database but not in current startlist
-                            rider_names = [general_url_to_label[url].split(" (")[0] for url in general_available.keys()]
-                            st.caption(f"🔍 {t('participant_not_found_startlist')}: **{', '.join(rider_names)}**. {t('participant_add_manually')}")
-                        else:
-                            st.caption(t("participant_no_riders_found"))
-                    except Exception as e:
-                        st.error(f"Error searching database: {e}")
-                        st.caption(t("participant_no_riders_found"))
+                # Check if the rider is missing because already selected
+                _already = [
+                    url_to_label.get(url, url).split(" (")[0]
+                    for url in selected_urls
+                    if _norm_query in _url_to_norm.get(url, "")
+                ]
+                if _already:
+                    st.caption(f"✅ {t('participant_already_selected')}: **{', '.join(_already)}**")
                 else:
-                    # Not using startlist, so search should have found riders in general database
-                    # If we get here, the rider is truly not in the database
                     st.caption(t("participant_no_riders_found"))
+
+        with col2:
+            st.markdown(f"#### 🚴 Rennerslijst")
+            
+            # For the general rider database search, we need to load all riders
+            @st.cache_data(ttl=300)
+            def _load_all_rider_rows():
+                conn = _connect(DB_PATH, read_only=True)
+                try:
+                    rows = conn.execute(
+                        "SELECT rider_url, name, nickname, nationality, team_name FROM riders WHERE name IS NOT NULL ORDER BY name"
+                    ).fetchall()
+                finally:
+                    conn.close()
+                return rows
+            
+            all_rider_rows = _load_all_rider_rows()
+            
+            # Build general rider options - exclude riders that are already in the startlist
+            general_rider_options = {}
+            general_url_to_label = {}
+            general_url_to_norm = {}
+            
+            # Get URLs from startlist for filtering - we need to compare the actual rider URLs
+            startlist_rider_urls = {url for url in rider_options.values()}
+            
+            for _url, _name, _nickname, _nat, _team in all_rider_rows:
+                # Only include riders that are NOT in the startlist
+                if _url not in startlist_rider_urls:
+                    _label = f"{_name} ({_nat or '?'})  {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+                    general_rider_options[_label] = _url
+                    general_url_to_label[_url] = _label
+                    general_url_to_norm[_url] = _normalize(_name)
+            
+            # Show info if no riders are available in general database (all are in startlist)
+            if not general_rider_options:
+                st.info("Alle renners uit de algemene database zitten al in de startlijst.")
+            else:
+                # Filter general rider options
+                _norm_query_general = _normalize(search_query) if search_query else ""
+                general_available = {
+                    label: url
+                    for label, url in general_rider_options.items()
+                    if url not in selected_urls and (
+                        not search_query or _norm_query_general in general_url_to_norm.get(url, "")
+                    )
+                }
+
+            if len(selected_urls) >= 15:
+                st.info(t("participant_max_riders"))
+            elif not search_query:
+                st.caption(t("participant_search_hint"))
+            elif general_available:
+                _available_items = list(general_available.items())
+                if len(_available_items) > 20:
+                    st.caption(f"{t('participant_many_results')} ({len(_available_items)}) — {t('participant_refine_search')}")
+                    _available_items = _available_items[:20]
+                _available_labels = [label for label, _ in _available_items]
+                add_label = st.radio(
+                    t("participant_add_rider"),
+                    options=_available_labels,
+                    index=0,
+                    key="rider_add_select_general",
+                    label_visibility="collapsed",
+                )
+                if st.button(f"➕ {t('participant_add_rider')}", width="stretch", key="btn_add_rider_general"):
+                    st.session_state[state_key].append(general_available[add_label])
+                    st.rerun()
+            else:
+                # Check if the rider is missing because already selected
+                _already = [
+                    general_url_to_label.get(url, url).split(" (")[0]
+                    for url in selected_urls
+                    if _norm_query_general in general_url_to_norm.get(url, "")
+                ]
+                if _already:
+                    st.caption(f"✅ {t('participant_already_selected')}: **{', '.join(_already)}**")
+                # else: removed the participant_no_riders_found message
 
         # ── Selected riders list ──────────────────────────────────────────────────────
         if selected_urls:
@@ -612,4 +600,3 @@ elif view == "scores":
                     st.info("No scores available yet.")
             except Exception as e:
                 st.error(f"Error loading scores: {e}")
-
