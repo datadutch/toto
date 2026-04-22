@@ -2,6 +2,7 @@ import os
 import json
 import re
 import unicodedata
+import urllib.parse
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -61,7 +62,25 @@ def t(key):
     """Translate a key to the current language"""
     return TRANSLATIONS[st.session_state.language].get(key, key)
 
-st.title(f"🚴 {t('participant_welcome')}")
+# Create columns for title and login button
+col_title, col_login = st.columns([4, 1])
+with col_title:
+    st.title(f"🚴 {t('participant_welcome')}")
+
+# Add login button in the header (only after session state is initialized)
+with col_login:
+    # Check if account is in session state, if not, user is not logged in
+    if "account" not in st.session_state or st.session_state.account is None:
+        if st.button("🚪 Inloggen", key="btn_login_header", help="Inloggen"):
+            # Scroll to login section
+            st.markdown(
+                """
+                <script>
+                    document.querySelector('[data-testid="stTextInput"]').scrollIntoView();
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
 
 if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
     st.error("Database not found. Ask the administrator to run the scraper first.")
@@ -86,29 +105,42 @@ if "participant_view" not in st.session_state:
 
 # Add logout button in header (after _is_guest is defined)
 if st.session_state.account is not None:
-    col_title, col_logout_header = st.columns([4, 1])
+    # Create columns for title, admin button, and logout button
+    col_title, col_admin, col_logout_header = st.columns([3, 1, 1])
     with col_title:
         # Title was already set above, just add spacing
         st.write("")  # Add some space
+    
+    # Add admin button if user is admin
+    with col_admin:
+        account = st.session_state.account
+        if account.get("is_admin") == "yes":
+            # Use the fixed admin URL
+            admin_url = "https://stamperstoto.streamlit.app/"
+            admin_params = {
+                "email": account["email"],
+            }
+            
+            full_admin_url = f"{admin_url}?{urllib.parse.urlencode(admin_params)}"
+            
+            # Use st.link_button for better styling (Streamlit 1.25+)
+            if hasattr(st, 'link_button'):
+                st.link_button("👑 Admin", full_admin_url, help="Naar admin paneel", use_container_width=True)
+            else:
+                st.markdown(
+                    f'[👑 Admin]({full_admin_url})',
+                    unsafe_allow_html=True,
+                    help="Naar admin paneel"
+                )
+    
     with col_logout_header:
         if not _is_guest:
             # On Streamlit Cloud, logout is handled by the platform
-            st.markdown("[🚪](?logout=true)", unsafe_allow_html=True)
+            st.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
         else:
-            if st.button("🚪", key="btn_logout_header", help="Uitloggen"):
+            if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
                 st.session_state.account = None
                 st.rerun()
-
-# ── Language Selector (Sidebar - At Top) ──────────────────────────────────────
-st.sidebar.selectbox(
-    t("language"),
-    options=["nl", "en"],
-    index=0 if st.session_state.language == "nl" else 1,
-    format_func=lambda x: "🇳🇱 Nederlands" if x == "nl" else "🇬🇧 English",
-    key="lang_selector",
-    on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector}),
-    label_visibility="visible"
-)
 
 # ── Auto-login via URL parameter (from admin app) ──────────────────────────────
 query_params = st.query_params
@@ -181,49 +213,78 @@ if st.session_state.account is None:
 account = st.session_state.account
 
 # ── Sidebar: User info ──────────────────────────────────────────────────────
-st.sidebar.markdown("---")
 
 # "Ingelogd als" label
-st.sidebar.markdown(f"**{t('participant_logged_in')}**")
+st.sidebar.markdown(f"<center><b>{t('participant_logged_in')}</b></center>", unsafe_allow_html=True)
 
 # Clickable username to open name change popup
 if st.sidebar.button(
-    f"👤 **{account['name']}**", 
+    f"👤 **{account['name']}** ({account['email']})", 
     key="btn_username",
     help="Klik om je naam te wijzigen",
     use_container_width=True
 ):
     st.session_state.show_change_name = True
 
-st.sidebar.markdown(f"_{account['email']}_")
+st.sidebar.markdown("---")
 
-# Change name modal/dialog
 if st.session_state.get("show_change_name", False):
-    st.divider()
-    st.subheader(f"📝 {t('participant_change_name')}")
-    new_name = st.text_input(t("participant_new_name"), placeholder="e.g. Johan (max 50 chars)", key="new_name_input")
+    # Full overlay to block the rest of the website
+    st.markdown("""
+    <style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+    }
+=======
+
+    """, unsafe_allow_html=True)
     
-    # Real-time validation for new name length
+    
+    # Modal title
+    st.markdown('📝 ' + t("participant_change_name"), unsafe_allow_html=True)
+    
+    # Input field
+    new_name = st.text_input(
+        t("participant_new_name"), 
+        placeholder="e.g. Johan (max 50 chars)", 
+        key="new_name_input",
+        label_visibility="collapsed"
+    )
+    
+    # Real-time validation
     if new_name.strip() and len(new_name.strip()) > 50:
         st.error(t("participant_error_username_length"))
     
+    # Buttons
     col1, col2 = st.columns([1, 1])
-    if col1.button(t("participant_cancel")):
+    if col1.button(t("participant_cancel"), use_container_width=True):
         st.session_state.show_change_name = False
         st.rerun()
     
-    if col2.button(t("participant_save"), type="primary") and new_name.strip() and len(new_name.strip()) <= 50:
-        # Update the name in the database
-        success = update_account_name(DB_PATH, account["id"], new_name.strip())
-        if success:
-            # Update the account in session state
-            account["name"] = new_name.strip()
-            st.session_state.account = account
-            st.success(t("participant_name_changed_success"))
-            st.session_state.show_change_name = False
-            st.rerun()
+    if col2.button(t("participant_save"), type="primary", use_container_width=True) and new_name.strip() and len(new_name.strip()) <= 50:
+        # Check if name is actually different
+        if new_name.strip() == account.get("name"):
+            st.error(t("participant_name_same"))
         else:
-            st.error(t("participant_name_change_error"))
+            print(f"Attempting to update account {account['id']} with name: {new_name.strip()}")
+            success = update_account_name(DB_PATH, account["id"], new_name.strip())
+            print(f"Update result: {success}")
+            if success:
+                account["name"] = new_name.strip()
+                st.session_state.account = account
+                st.success(t("participant_name_changed_success"))
+                st.session_state.show_change_name = False
+                st.rerun()
+            else:
+                st.error(t("participant_name_change_error") + f" (ID: {account['id']})")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
@@ -626,3 +687,16 @@ elif view == "scores":
                     st.info("No scores available yet.")
             except Exception as e:
                 st.error(f"Error loading scores: {e}")
+
+# ── Language Selector (Sidebar - At Bottom) ──────────────────────────────────
+st.sidebar.markdown("---")
+st.sidebar.selectbox(
+    t("language"),
+    options=["nl", "en"],
+    index=0 if st.session_state.language == "nl" else 1,
+    format_func=lambda x: "🇳🇱 Nederlands" if x == "nl" else "🇬🇧 English",
+    key="lang_selector",
+    on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector}),
+    label_visibility="visible"
+)
+

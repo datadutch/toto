@@ -288,7 +288,22 @@ def update_account_name(db_path: str, account_id: int, new_name: str) -> bool:
             "UPDATE accounts SET name = ? WHERE id = ?",
             [new_name.strip(), account_id],
         )
-        return result.rowcount > 0
+        
+        # Always verify the update by checking if the name was actually updated
+        updated_account = conn.execute(
+            "SELECT name FROM accounts WHERE id = ?",
+            [account_id],
+        ).fetchone()
+        
+        if updated_account and updated_account[0] == new_name.strip():
+            print(f"Update successful, name is now: {updated_account[0]}")
+            return True
+        else:
+            print(f"Update failed, name is still: {updated_account[0] if updated_account else 'N/A'}")
+            return False
+    except Exception as e:
+        print(f"Exception in update_account_name: {e}")
+        return False
     finally:
         conn.close()
 
