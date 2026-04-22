@@ -5,6 +5,9 @@ prompts.md
 .github/prompts/
 mac/
 unused_analysis.md
+init_test_db.py
+old_participant.py
+search_experiment.py
 
 # Virtual environments
 .venv/
