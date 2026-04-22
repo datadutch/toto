@@ -165,14 +165,19 @@ if st.session_state.account is None:
 # ── Logged in ─────────────────────────────────────────────────────────────────
 account = st.session_state.account
 
-# ── Sidebar separator (only visible when logged in) ───────────────────────────
+# ── Sidebar: User info ──────────────────────────────────────────────────────
 st.sidebar.markdown("---")
 
-st.sidebar.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
-# ── Sidebar separator (only visible when logged in) ───────────────────────────
-st.sidebar.markdown("---")
+# Clickable username to open name change popup
+if st.sidebar.button(
+    f"👤 **{account['name']}**", 
+    key="btn_username",
+    help="Klik om je naam te wijzigen",
+    use_container_width=True
+):
+    st.session_state.show_change_name = True
 
-st.sidebar.markdown(f"Ingelogd als **{account['name']}** ({account['email']})")
+st.sidebar.markdown(f"_{account['email']}_")
 
 # Change name modal/dialog
 if st.session_state.get("show_change_name", False):
@@ -202,19 +207,15 @@ if st.session_state.get("show_change_name", False):
         else:
             st.error(t("participant_name_change_error"))
 
-# Action buttons - Change name and Logout (main content, not sidebar)
-col_change_name, col_logout = st.columns([1, 1])
+st.divider()
 
-# Change name button - always visible in main content
-if col_change_name.button(f"📝 {t('participant_change_name')}", key="btn_change_name", help=t('participant_change_name')):
-    st.session_state.show_change_name = True
-
-# Logout button in main content
+# Logout button in main content - aligned to the right
+col_logout_main = st.columns([1])[0]
 if not _is_guest:
     # On Streamlit Cloud, logout is handled by the platform
-    col_logout.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
+    col_logout_main.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
 else:
-    if col_logout.button("🚪 Uitloggen", key="btn_logout", help="Uitloggen"):
+    if col_logout_main.button("🚪 Uitloggen", key="btn_logout", help="Uitloggen"):
         st.session_state.account = None
         st.rerun()
 
