@@ -199,24 +199,41 @@ st.sidebar.markdown(f"_{account['email']}_")
 
 # Change name modal/dialog
 if st.session_state.get("show_change_name", False):
-    # Enhanced modal-style dialog with better UI
-    st.divider()
-    
-    # Modal container with styling
+    # Full page overlay to block the rest of the website
     st.markdown("""
     <style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
     .name-change-modal {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #e0e0e0;
+        background-color: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px;
+        z-index: 10000;
+    }
+    .stApp { 
+        position: relative; 
     }
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"""
-    <div class='name-change-modal'>
-        <h3>📝 {t('participant_change_name')}</h3>
+    # Overlay HTML
+    st.markdown("""
+    <div class='modal-overlay'>
+        <div class='name-change-modal'>
+            <h2 style='margin-top: 0; color: #1f77b4;'>📝 Verander je naam</h2>
     """, unsafe_allow_html=True)
     
     new_name = st.text_input(
@@ -230,26 +247,55 @@ if st.session_state.get("show_change_name", False):
     if new_name.strip() and len(new_name.strip()) > 50:
         st.error(t("participant_error_username_length"))
     
-    # Action buttons
-    col1, col2, col3 = st.columns([1, 1, 4])  # Added spacing
-    if col1.button(t("participant_cancel"), use_container_width=True):
-        st.session_state.show_change_name = False
-        st.rerun()
+    # Action buttons with better styling
+    col1, col2 = st.columns([1, 1])
     
-    if col2.button(t("participant_save"), type="primary", use_container_width=True) and new_name.strip() and len(new_name.strip()) <= 50:
-        # Update the name in the database
-        success = update_account_name(DB_PATH, account["id"], new_name.strip())
-        if success:
-            # Update the account in session state
-            account["name"] = new_name.strip()
-            st.session_state.account = account
-            st.success(t("participant_name_changed_success"))
-            st.session_state.show_change_name = False
-            st.rerun()
-        else:
-            st.error(t("participant_name_change_error"))
+    # Close modal HTML
+    st.markdown("""
+    <div style='display: flex; gap: 10px; margin-top: 20px;'>
+        <button onclick="window.location.href='?show_change_name=false'" 
+                style='padding: 10px 20px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 5px; cursor: pointer;'>
+            Annuleren
+        </button>
+        <button onclick="document.getElementById('save-button').click()" 
+                style='padding: 10px 20px; background: #1f77b4; color: white; border: none; border-radius: 5px; cursor: pointer;'>
+            Opslaan
+        </button>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Hidden button for Streamlit to handle the save action
+    if st.button("Opslaan", key="save-button", type="primary"):
+        if new_name.strip() and len(new_name.strip()) <= 50:
+            # Update the name in the database
+            success = update_account_name(DB_PATH, account["id"], new_name.strip())
+            if success:
+                # Update the account in session state
+                account["name"] = new_name.strip()
+                st.session_state.account = account
+                st.success(t("participant_name_changed_success"))
+                st.session_state.show_change_name = False
+                st.rerun()
+            else:
+                st.error(t("participant_name_change_error"))
+    
+    # Close the modal HTML
+    st.markdown("""
+        </div>
+    </div>
+    <script>
+    // Auto-focus the input field
+    setTimeout(function() {
+        var inputs = document.getElementsByTagName('input');
+        for (var i = 0; i < inputs.length; i++) {
+            if (inputs[i].type === 'text') {
+                inputs[i].focus();
+                break;
+            }
+        }
+    }, 100);
+    </script>
+    """, unsafe_allow_html=True)
 
 st.divider()
 
