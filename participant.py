@@ -188,16 +188,14 @@ st.sidebar.markdown(f"**{t('participant_logged_in')}**")
 
 # Clickable username to open name change popup
 if st.sidebar.button(
-    f"👤 **{account['name']}**", 
+    f"👤 **{account['name']}** ({account['email']})", 
     key="btn_username",
     help="Klik om je naam te wijzigen",
     use_container_width=True
 ):
     st.session_state.show_change_name = True
 
-st.sidebar.markdown(f"_{account['email']}_")
 
-# Change name modal/dialog
 if st.session_state.get("show_change_name", False):
     # Full overlay to block the rest of the website
     st.markdown("""
@@ -211,69 +209,13 @@ if st.session_state.get("show_change_name", False):
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 9999;
     }
-    body.modal-open {
-        overflow: hidden;
-    }
-    .modal-container {
-        position: relative;
-        z-index: 10000;
-    }
-    </style>
-    <script>
-    // Try to prevent scrolling when modal is open
-    document.body.style.overflow = 'hidden';
-    </script>
 =======
-    <style>
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 9999;
-    }
-    body.modal-open {
-        overflow: hidden;
-    }
-    .modal-container {
-        position: relative;
-        z-index: 10000;
-    }
-    </style>
-    <script>
-    // Try to prevent scrolling when modal is open
-    document.body.style.overflow = 'hidden';
-    </script>
-    .modal-container {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: white;
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        width: 90%;
-        max-width: 500px;
-        z-index: 10000;
-    }
-    .modal-title {
-        color: #1f77b4;
-        margin-top: 0;
-        margin-bottom: 20px;
-        font-size: 24px;
-    }
-    </style>
+
     """, unsafe_allow_html=True)
     
-    # Create overlay and modal container
-    st.markdown('<div class="modal-overlay"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="modal-container">', unsafe_allow_html=True)
     
     # Modal title
-    st.markdown('<h2 class="modal-title">📝 Verander je naam</h2>', unsafe_allow_html=True)
+    st.markdown('📝 ' + t("participant_change_name"), unsafe_allow_html=True)
     
     # Input field
     new_name = st.text_input(
@@ -304,7 +246,6 @@ if st.session_state.get("show_change_name", False):
         else:
             st.error(t("participant_name_change_error"))
     
-    # Close modal container
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
