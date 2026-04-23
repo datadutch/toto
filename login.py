@@ -129,6 +129,23 @@ if not _is_guest and _cloud_email and st.session_state.account is None:
 
 # ── Manual login / registration (local dev or guest) ─────────────────────────
 if st.session_state.account is None:
+    show_login_form()
+
+
+# Return the account if logged in
+def get_account():
+    return st.session_state.account
+
+# Return the DB_PATH
+def get_db_path():
+    return DB_PATH
+
+# Return the _is_guest variable
+def get_is_guest():
+    return _is_guest
+
+# Show the login form
+def show_login_form():
     st.subheader(t("participant_login_register"))
 
     email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
@@ -150,7 +167,7 @@ if st.session_state.account is None:
         st.rerun()
     else:
         st.info(t("participant_no_account"))
-        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input")
+        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input") 
         
         # Real-time validation for username length
         if name_input.strip() and len(name_input.strip()) > 50:
@@ -164,15 +181,9 @@ if st.session_state.account is None:
 
     st.stop()
 
-
-# Return the account if logged in
-def get_account():
-    return st.session_state.account
-
-# Return the DB_PATH
-def get_db_path():
-    return DB_PATH
-
-# Return the _is_guest variable
-def get_is_guest():
-    return _is_guest
+# Call the login form if no account is present
+if st.session_state.account is None:
+    show_login_form()
+else:
+    # If account is present, show a message
+    st.success(f"Welcome back, {st.session_state.account['name']}!")
