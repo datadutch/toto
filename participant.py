@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 import unicodedata
 import urllib.parse
 import pandas as pd
@@ -9,89 +10,141 @@ from dotenv import load_dotenv
 from src.db import (
     init_fantasy_tables, init_accounts_table,
     save_fantasy_team, load_team_by_account,
-    get_account_by_email, create_account,
     _connect, load_races, is_registration_open,
     load_stages, load_stage_results, calculate_scores,
     update_account_name,
 )
 from src.voice import extract_riders_from_text, match_riders_to_db
+from login import get_account, t, DB_PATH, get_is_guest, _normalize
 
-
-def _normalize(text: str) -> str:
-    """Lowercase + strip diacritics so 'pogacar' matches 'Pogačar'."""
-    return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
-
-load_dotenv()
+# ── Environment Detection ───────────────────────────────────────────────────
+def get_login_url():
+    """Detect if running locally or in production and return the appropriate URL."""
+    # Check if we're running on Streamlit Cloud
+    if "STREAMLIT_CLOUD" in os.environ:
+        # Production environment - Streamlit Cloud
+        return "https://stamperstotogalore.streamlit.app/"
+    else:
+        # Local development
+        return "http://localhost:8500/"
 
 # ── Load Translations from JSON ──────────────────────────────────────────────
 with open("translations.json", "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
-try:
-    _TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
-except Exception:
-    _TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
-if _TOKEN:
-    DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
-else:
-    DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
-
-st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
-
-# ── Custom CSS for Fixed Footer Language Selector ──────────────────────────
-st.markdown("""
-    <style>
-    .footer {
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        width: auto;
-        padding: 12px 20px;
-        background-color: rgba(255, 255, 255, 0.95);
-        border-top: 1px solid #e0e0e0;
-        z-index: 999;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # ── Initialize Language ──────────────────────────────────────────────────────
 if "language" not in st.session_state:
     st.session_state.language = "nl"
-
-def t(key):
-    """Translate a key to the current language"""
-    return TRANSLATIONS[st.session_state.language].get(key, key)
-
-# Create columns for title and login button
-col_title, col_login = st.columns([4, 1])
-with col_title:
-    st.title(f"🚴 {t("participant_welcome")}")
-
-# Remove login button from header as it's not needed
-with col_login:
-    st.write("")  # Empty space to maintain layout
-if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
-    st.error("Database not found. Ask the administrator to run the scraper first.")
-    st.stop()
-
-init_fantasy_tables(DB_PATH)
-init_accounts_table(DB_PATH)
-
-# ── Auth: use st.user when available (Streamlit Cloud OAuth), else manual email ──
-_user = st.user if hasattr(st, "user") else None
-_cloud_email = getattr(_user, "email", None)
-_cloud_name = getattr(_user, "name", None)
-_is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
-
-# ── Session state ─────────────────────────────────────────────────────────────
-if "account" not in st.session_state:
-    st.session_state.account = None
 
 # ── Initialize view state ──────────────────────────────────────────────────────
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
 
+# Initialize account if not present
+if "account" not in st.session_state:
+    st.session_state.account = None
+
+# ── Session Management Functions ───────────────────────────────────────────
+def extend_session(account_id):
+    """Extend the current session by 10 minutes."""
+    conn = _connect(DB_PATH)
+    try:
+        # Get current session for this account
+        current_session = conn.execute(
+            "SELECT session_id FROM sessions WHERE account_id = ?",
+            [str(account_id)]
+        ).fetchone()
+        
+        if current_session:
+            # Extend existing session
+            session_id = current_session[0]
+            new_expiry = int(time.time()) + 600  # Extend by 10 minutes
+            conn.execute(
+                "UPDATE sessions SET expiry = ? WHERE session_id = ?",
+                [new_expiry, session_id]
+            )
+            conn.commit()
+            return session_id
+        else:
+            # Create new session
+            session_id = str(uuid.uuid4())
+            expiry = int(time.time()) + 600
+            conn.execute(
+                "INSERT INTO sessions (session_id, account_id, expiry) VALUES (?, ?, ?)",
+                [session_id, str(account_id), expiry]
+            )
+            conn.commit()
+            return session_id
+    finally:
+        conn.close()
+    return None
+
+# ── Auto-login via session ID in URL ────────────────────────────────────────
+query_params = st.query_params
+if query_params.get("session_id") and st.session_state.account is None:
+    session_id = query_params.get("session_id")
+    # Validate session and get account
+    conn = _connect(DB_PATH)
+    try:
+        # Debug: Show we're checking the session
+        st.info(f"🔍 Controleer sessie: {session_id[:8]}...")
+        
+        # Check if session exists and is not expired
+        session = conn.execute(
+            "SELECT account_id, expiry FROM sessions WHERE session_id = ?",
+            [session_id]
+        ).fetchone()
+        
+        if session:
+            st.info(f"📋 Sessie gevonden: account={session[0]}, verloopt={time.ctime(session[1])}")
+            
+            if session[1] > int(time.time()):
+                # Session is valid, get account
+                st.info(f"✅ Sessie is geldig, account ophalen...")
+                account_id = session[0]
+                account = conn.execute(
+                    "SELECT * FROM accounts WHERE id = ?",
+                    [account_id]
+                ).fetchone()
+                
+                if account:
+                    st.info(f"👤 Account gevonden: {dict(account).get('email')}")
+                    # Convert account to dict and store in session
+                    account_dict = dict(account)
+                    # Ensure all keys are strings
+                    account_dict = {str(k): v for k, v in account_dict.items()}
+                    st.session_state.account = account_dict
+                    
+                    # Debug: Show successful login
+                    st.success(f"✅ Succesvol ingelogd als {account_dict.get('name', 'gebruiker')}")
+                    
+                    # Extend the session (instead of deleting it)
+                    new_expiry = int(time.time()) + 600
+                    conn.execute(
+                        "UPDATE sessions SET expiry = ? WHERE session_id = ?",
+                        [new_expiry, session_id]
+                    )
+                    conn.commit()
+                    
+                    # Store session ID in session state for future extensions
+                    st.session_state.session_id = session_id
+                    
+                    # Clear the query params from URL
+                    st.query_params.clear()
+                    # Continue without rerun - the page will render normally with the account loaded
+                else:
+                    st.error(f"❌ Account niet gevonden voor ID: {account_id}")
+            else:
+                st.error(f"❌ Sessie is verlopen op {time.ctime(session[1])}")
+        else:
+            st.error(f"❌ Sessie {session_id[:8]}... niet gevonden in database")
+    except Exception as e:
+        st.error(f"❌ Fout bij sessie herstel: {e}")
+    finally:
+        conn.close()
+
 # Add logout button in header (after _is_guest is defined)
+_is_guest = get_is_guest()
 if st.session_state.account is not None:
     # Create columns for title, admin button, and logout button
     col_title, col_admin, col_logout_header = st.columns([3, 1, 1])
@@ -107,9 +160,9 @@ if st.session_state.account is not None:
             admin_url = "https://stamperstoto.streamlit.app/"
             admin_params = {
                 "email": account["email"],
-            }
+            } 
             
-            full_admin_url = f"{admin_url}?{urllib.parse.urlencode(admin_params)}"
+            full_admin_url = f"{admin_url}?{urllib.parse.urlencode(admin_params)}" 
             
             # Use st.link_button for better styling (Streamlit 1.25+)
             # Note: st.link_button opens in same tab by default
@@ -129,76 +182,77 @@ if st.session_state.account is not None:
         else:
             if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
                 st.session_state.account = None
-                st.rerun()
-
-# ── Auto-login via URL parameter (from admin app) ──────────────────────────────
-query_params = st.query_params
-auto_login_email = query_params.get("email")
-auto_login_flag = query_params.get("auto_login")
-
-if auto_login_email and auto_login_flag == "true" and st.session_state.account is None:
-    account = get_account_by_email(DB_PATH, auto_login_email)
-    if account:
-        st.session_state.account = account
-        # Clear the query params from the URL for clean display
-        st.query_params.clear()
-        st.rerun()
-
-# ── Auto-login via environment variable ──────────────────────────────────────
-if st.session_state.account is None:
-    env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
-    if env_auto_login_email:
-        account = get_account_by_email(DB_PATH, env_auto_login_email)
-        if account:
-            st.session_state.account = account
-            st.rerun()
-
-# ── Auto-login via Google (Streamlit Cloud OAuth), else manual email ──────────
-if not _is_guest and _cloud_email and st.session_state.account is None:
-    account = get_account_by_email(DB_PATH, _cloud_email)
-    if not account:
-        display_name = _cloud_name or _cloud_email.split("@")[0]
-        account = create_account(DB_PATH, _cloud_email, display_name)
-    st.session_state.account = account
-
-# ── Manual login / registration (local dev or guest) ─────────────────────────
-if st.session_state.account is None:
-    st.subheader(t("participant_login_register"))
-
-    email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
-
-    if not email_input.strip():
-        st.stop()
-
-    # Validate email format
-    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if not re.match(email_pattern, email_input.strip()):
-        st.error(t("participant_invalid_email"))
-        st.stop()
-
-    account = get_account_by_email(DB_PATH, email_input.strip())
-
-    if account:
-        st.success(f"{t('participant_welcome_back')}, **{account['name']}**!")
-        st.session_state.account = account
-        st.rerun()
-    else:
-        st.info(t("participant_no_account"))
-        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input")
-        
-        # Real-time validation for username length
-        if name_input.strip() and len(name_input.strip()) > 50:
-            st.error(t("participant_error_username_length"))
-        
-        if name_input.strip() and len(name_input.strip()) <= 50:
-            if st.button(t("participant_create_account"), width="stretch"):
-                account = create_account(DB_PATH, email_input.strip(), name_input.strip())
-                st.session_state.account = account
-                st.rerun()
-
-    st.stop()
+                login_url = get_login_url()
+                st.success(f"✅ Succesvol uitgelogd! Je kunt dit venster sluiten of naar [login pagina]({login_url}) gaan.")
+                st.stop()
 
 # ── Logged in ─────────────────────────────────────────────────────────────────
+account = st.session_state.account
+
+# Debug: Check what's in session state
+if st.session_state.account is None:
+    # Check if there's a session_id but no account (should not happen)
+    if 'session_id' in st.session_state:
+        # Try to restore session
+        conn = _connect(DB_PATH)
+        try:
+            session = conn.execute(
+                "SELECT account_id, expiry FROM sessions WHERE session_id = ?",
+                [st.session_state.session_id]
+            ).fetchone()
+            
+            if session and session[1] > int(time.time()):
+                # Session is still valid, restore account
+                account_id = session[0]
+                account = conn.execute(
+                    "SELECT * FROM accounts WHERE id = ?",
+                    [account_id]
+                ).fetchone()
+                
+                if account:
+                    account_dict = {str(k): v for k, v in dict(account).items()}
+                    st.session_state.account = account_dict
+                    st.rerun()
+        finally:
+            conn.close()
+
+# Debug: Show session status and database info
+if st.session_state.account is None:
+    st.warning("🔍 Controleer sessie... ")
+    if 'session_id' in st.session_state:
+        st.info(f"Sessie-ID gevonden: {st.session_state.session_id[:8]}... (probeer te herstellen)")
+    
+    # Always show debug button when no account
+    if st.button("🔧 Toon database sessies"):
+        conn = _connect(DB_PATH)
+        try:
+            sessions = conn.execute("SELECT * FROM sessions").fetchall()
+            if sessions:
+                st.write("### Actieve Sessies:")
+                for session in sessions:
+                    expiry_time = time.ctime(session[2])
+                    is_expired = session[2] < int(time.time())
+                    status = "❌ Verlopen" if is_expired else "✅ Actief"
+                    st.write(f"- ID: {session[0][:8]}..., Account: {session[1]}, Verloopt: {expiry_time} {status}")
+            else:
+                st.write("📊 Geen actieve sessies gevonden")
+            
+            # Also show accounts for debugging
+            accounts = conn.execute("SELECT id, email, name FROM accounts LIMIT 5").fetchall()
+            if accounts:
+                st.write("### Account Overzicht:")
+                for acc in accounts:
+                    st.write(f"- ID: {acc[0]}, Email: {acc[1]}, Naam: {acc[2]}")
+        finally:
+            conn.close()
+
+# Toon een foutmelding als er geen account is
+if st.session_state.account is None:
+    login_url = get_login_url()
+    st.error(f"❌ Je bent niet ingelogd. Ga naar de [login pagina]({login_url}) om in te loggen.")
+    st.stop()
+
+# Use the account from session state
 account = st.session_state.account
 
 # ── Sidebar: User info ──────────────────────────────────────────────────────
@@ -267,6 +321,9 @@ if st.session_state.get("show_change_name", False):
             if success:
                 account["name"] = new_name.strip()
                 st.session_state.account = account
+                # Extend session on action
+                if 'session_id' in st.session_state:
+                    extend_session(account["id"])
                 st.success(t("participant_name_changed_success"))
                 st.session_state.show_change_name = False
                 st.rerun()
@@ -348,7 +405,7 @@ url_to_label = {}    # url -> label
 _url_to_norm = {}    # url -> normalized name
 _selected_set = set()  # for fast O(1) lookup later
 for _url, _name, _nickname, _nat, _team in _rider_rows:
-    _label = f"{_name} ({_nat or '?'})  {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+    _label = f"{_name} ({_nat or '?'}) 德华 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
     rider_options[_label] = _url
     url_to_label[_url] = _label
     _url_to_norm[_url] = _normalize(_name)
@@ -534,7 +591,7 @@ if view == "register":
             for _url, _name, _nickname, _nat, _team in all_rider_rows:
                 # Only include riders that are NOT in the startlist
                 if _url not in startlist_rider_urls:
-                    _label = f"{_name} ({_nat or '?'})  {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
+                    _label = f"{_name} ({_nat or '?'}) 德华 {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
                     general_rider_options[_label] = _url
                     general_url_to_label[_url] = _label
                     general_url_to_norm[_url] = _normalize(_name)
@@ -632,6 +689,10 @@ if view == "register":
                         race_name=selected_race,
                         account_id=account["id"],
                     )
+                    # Extend session on action
+                    if 'session_id' in st.session_state:
+                        extend_session(account["id"])
+                    
                     # Clear session state so next load pre-fills from DB
                     del st.session_state[state_key]
                     if existing_team:
@@ -688,4 +749,3 @@ st.sidebar.selectbox(
     on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector}),
     label_visibility="visible"
 )
-
