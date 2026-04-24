@@ -10,89 +10,50 @@ from src.db import (
     get_account_by_email, create_account,
 )
 
-
 def _normalize(text: str) -> str:
     """Lowercase + strip diacritics so 'pogacar' matches 'Pogačar'."""
     return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
-
 load_dotenv()
 
-# ── Load Translations from JSON ──────────────────────────────────────────────
-with open("translations.json", "r", encoding="utf-8") as f:
-    TRANSLATIONS = json.load(f)
-
-
-try:
-    _TOKEN = os.getenv("MOTHERDUCK_TOKEN") or st.secrets.get("MOTHERDUCK_TOKEN", "")
-except Exception:
-    _TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
+# ── Database Path ────────────────────────────────────────────────────────────
+_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
 if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
 
+# ── Load Translations from JSON ──────────────────────────────────────────────
+with open("translations.json", "r", encoding="utf-8") as f:
+    TRANSLATIONS = json.load(f)
 
-st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
+# ── Translation function ─────────────────────────────────────────────────────
+def t(key: str) -> str:
+    """Get translation for current language."""
+    lang = st.session_state.get("language", "nl")
+    return TRANSLATIONS.get(key, {}).get(lang, key)
 
-# ── Custom CSS for Fixed Footer Language Selector ──────────────────────────
-st.markdown("""
-    <style>
-    .footer {
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        width: auto;
-        padding: 12px 20px;
-        background-color: rgba(255, 255, 255, 0.95);
-        border-top: 1px solid #e0e0e0;
-        z-index: 999;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# ── Initialize Language ──────────────────────────────────────────────────────
+# ── Initialize session state ─────────────────────────────────────────────────
 if "language" not in st.session_state:
     st.session_state.language = "nl"
 
-
-def t(key):
-    """Translate a key to the current language"""
-    return TRANSLATIONS[st.session_state.language].get(key, key)
-
-
-# Create columns for title and login button
-col_title, col_login = st.columns([4, 1])
-with col_title:
-    st.title(f"🚴 {t('participant_welcome')}")
-
-# Remove login button from header as it's not needed
-with col_login:
-    st.write("")  # Empty space to maintain layout
-
-
-if not DB_PATH.startswith("md:") and not os.path.exists(DB_PATH):
-    st.error("Database not found. Ask the administrator to run the scraper first.")
-    st.stop()
-
-
-init_fantasy_tables(DB_PATH)
-init_accounts_table(DB_PATH)
-
-# ── Auth: use st.user when available (Streamlit Cloud OAuth), else manual email ──
-_user = st.user if hasattr(st, "user") else None
-_cloud_email = getattr(_user, "email", None)
-_cloud_name = getattr(_user, "name", None)
-_is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
-
-# ── Session state ─────────────────────────────────────────────────────────────
 if "account" not in st.session_state:
     st.session_state.account = None
 
-# ── Initialize view state ──────────────────────────────────────────────────────
+# ── Check if running on Streamlit Cloud ──────────────────────────────────────
+_cloud_email = None
+_cloud_name = None
+_user = getattr(st, "user", None)
+
+if _user:
+    _cloud_email = _user.email
+    _cloud_name = getattr(_user, "name", None) or getattr(_user, "full_name", None)
+
+_is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
+
+# ── Session state ─────────────────────────────────────────────────────────────
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
-
 
 # ── Auto-login via URL parameter (from admin app) ──────────────────────────────
 query_params = st.query_params
@@ -127,23 +88,6 @@ if not _is_guest and _cloud_email and st.session_state.account is None:
     st.session_state.account = account
 
 
-# ── Manual login / registration (local dev or guest) ─────────────────────────
-if st.session_state.account is None:
-    show_login_form()
-
-
-# Return the account if logged in
-def get_account():
-    return st.session_state.account
-
-# Return the DB_PATH
-def get_db_path():
-    return DB_PATH
-
-# Return the _is_guest variable
-def get_is_guest():
-    return _is_guest
-
 # Show the login form
 def show_login_form():
     st.subheader(t("participant_login_register"))
@@ -164,7 +108,8 @@ def show_login_form():
     if account:
         st.success(f"{t('participant_welcome_back')}, **{account['name']}**!")
         st.session_state.account = account
-        st.rerun()
+        # Show instructions to manually go to participant page
+        st.info("✅ Succesvol ingelogd! Ga naar [deelnemerspagina](http://localhost:8502/) om door te gaan.")
     else:
         st.info(t("participant_no_account"))
         name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input") 
@@ -173,17 +118,30 @@ def show_login_form():
         if name_input.strip() and len(name_input.strip()) > 50:
             st.error(t("participant_error_username_length"))
         
-        if name_input.strip() and len(name_input.strip()) <= 50:
-            if st.button(t("participant_create_account"), width="stretch"):
+        # Add form for Enter key support
+        with st.form(key="create_account_form"):
+            if st.form_submit_button(t("participant_create_account"), width="stretch"):
                 account = create_account(DB_PATH, email_input.strip(), name_input.strip())
                 st.session_state.account = account
-                st.rerun()
+                # Show instructions to manually go to participant page
+                st.info("✅ Account succesvol gemaakt! Ga naar [deelnemerspagina](http://localhost:8502/) om door te gaan.")
 
     st.stop()
 
-# Call the login form if no account is present
+
+# ── Manual login / registration (local dev or guest) ─────────────────────────
 if st.session_state.account is None:
     show_login_form()
-else:
-    # If account is present, show a message
-    st.success(f"Welcome back, {st.session_state.account['name']}!")
+
+
+# Return the account if logged in
+def get_account():
+    return st.session_state.account
+
+# Return the DB_PATH
+def get_db_path():
+    return DB_PATH
+
+# Return the _is_guest variable
+def get_is_guest():
+    return _is_guest

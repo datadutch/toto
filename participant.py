@@ -14,7 +14,7 @@ from src.db import (
     update_account_name,
 )
 from src.voice import extract_riders_from_text, match_riders_to_db
-from login import get_account, t, DB_PATH, get_is_guest
+from login import get_account, t, DB_PATH, get_is_guest, _normalize
 
 # ── Load Translations from JSON ──────────────────────────────────────────────
 with open("translations.json", "r", encoding="utf-8") as f:
@@ -27,6 +27,10 @@ if "language" not in st.session_state:
 # ── Initialize view state ──────────────────────────────────────────────────────
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
+
+# Initialize account if not present
+if "account" not in st.session_state:
+    st.session_state.account = None
 
 # Add logout button in header (after _is_guest is defined)
 _is_guest = get_is_guest()
@@ -67,10 +71,16 @@ if st.session_state.account is not None:
         else:
             if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
                 st.session_state.account = None
-                st.rerun()
+                st.success("✅ Succesvol uitgelogd! Je kunt dit venster sluiten of naar [login pagina](http://localhost:8500/) gaan.")
+                st.stop()
 
 # ── Logged in ─────────────────────────────────────────────────────────────────
 account = st.session_state.account
+
+# Redirect to login if no account
+if account is None:
+    st.error("❌ Je bent niet ingelogd. Ga naar [login pagina](http://localhost:8500/) om in te loggen.")
+    st.stop()
 
 # ── Sidebar: User info ──────────────────────────────────────────────────────
 
