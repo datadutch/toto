@@ -1,10 +1,7 @@
 import os
 import json
 import re
-import time
-import uuid
 import unicodedata
-import urllib.parse
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -52,38 +49,9 @@ if "participant_view" not in st.session_state:
 if "account" not in st.session_state:
     st.session_state.account = None
 
-# ── Session extension helper ───────────────────────────────────────────────
-def extend_session(account_id):
-    conn = _connect(DB_PATH)
-    try:
-        current_session = conn.execute(
-            "SELECT session_id FROM sessions WHERE account_id = ?",
-            [str(account_id)]
-        ).fetchone()
-        if current_session:
-            session_id = current_session[0]
-            new_expiry = int(time.time()) + 600
-            conn.execute(
-                "UPDATE sessions SET expiry = ? WHERE session_id = ?",
-                [new_expiry, session_id]
-            )
-            conn.commit()
-            return session_id
-        else:
-            session_id = str(uuid.uuid4())
-            expiry = int(time.time()) + 600
-            conn.execute(
-                "INSERT INTO sessions (session_id, account_id, expiry) VALUES (?, ?, ?)",
-                [session_id, str(account_id), expiry]
-            )
-            conn.commit()
-            return session_id
-    finally:
-        conn.close()
-
 # ── Auth check ────────────────────────────────────────────────────────────────
 if st.session_state.account is None:
-    st.switch_page("login.py")
+    st.switch_page("participant.py")
 
 account = st.session_state.account
 
@@ -99,15 +67,8 @@ with col_title:
 
 with col_admin:
     if account.get("is_admin") == "yes":
-        admin_url = "https://stamperstoto.streamlit.app/"
-        full_admin_url = f"{admin_url}?{urllib.parse.urlencode({'email': account['email']})}"
-        if hasattr(st, "link_button"):
-            st.link_button("👑 Admin", full_admin_url, help="Naar admin paneel", use_container_width=True)
-        else:
-            st.markdown(
-                f'<a href="{full_admin_url}" target="_self" style="display:inline-block;width:100%;text-align:center;">👑 Admin</a>',
-                unsafe_allow_html=True,
-            )
+        if st.button("👑 Admin", key="btn_admin", help="Naar admin paneel", use_container_width=True):
+            st.switch_page("pages/administrator.py")
 
 with col_logout_header:
     if not _is_guest:
@@ -115,7 +76,7 @@ with col_logout_header:
     else:
         if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
             st.session_state.account = None
-            st.switch_page("login.py")
+            st.switch_page("participant.py")
 
 # ── Sidebar: User info ────────────────────────────────────────────────────────
 st.sidebar.markdown(f"<center><b>{t('participant_logged_in')}</b></center>", unsafe_allow_html=True)
@@ -175,8 +136,6 @@ if st.session_state.get("show_change_name", False):
             if success:
                 account["name"] = new_name.strip()
                 st.session_state.account = account
-                if "session_id" in st.session_state:
-                    extend_session(account["id"])
                 st.success(t("participant_name_changed_success"))
                 st.session_state.show_change_name = False
                 st.rerun()
@@ -510,8 +469,6 @@ if view == "register":
                         race_name=selected_race,
                         account_id=account["id"],
                     )
-                    if "session_id" in st.session_state:
-                        extend_session(account["id"])
                     del st.session_state[state_key]
                     st.success(f"{t('participant_team_saved')}")
                     st.balloons()

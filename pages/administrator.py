@@ -13,7 +13,7 @@ from src.db import (
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email, 
-    create_account, set_admin_status,
+    set_admin_status,
     save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
 )
 from src.scraper import get_race_startlist
@@ -32,10 +32,13 @@ if _TOKEN:
     DB_PATH = f"md:toto?motherduck_token={_TOKEN}"
     _READ_ONLY = False  # MotherDuck does not support read_only attach
 else:
-    DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
+    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "cycling.duckdb")
     _READ_ONLY = True
 
 st.set_page_config(page_title="Stampers Toto Administratie", page_icon="🚴", layout="wide")
+
+# Hide default multipage sidebar nav
+st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
 
 # ── Custom CSS for Fixed Footer Language Selector ──────────────────────────
 st.markdown("""
@@ -252,22 +255,16 @@ _ADMIN_EMAILS_OLD = [
 if _ADMIN_EMAILS_OLD:
     init_admin_accounts(DB_PATH, _ADMIN_EMAILS_OLD)
 
-# ── Admin login ───────────────────────────────────────────────────────────────
-if "admin_account" not in st.session_state:
-    st.session_state.admin_account = None
+# ── Auth check via participant session ────────────────────────────────────────
+if st.session_state.get("account") is None:
+    st.switch_page("participant.py")
 
-# ── Auto-login via environment variable ──────────────────────────────────────
-if st.session_state.admin_account is None:
-    env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
-    if env_auto_login_email:
-        _acct = get_account_by_email(DB_PATH, env_auto_login_email.strip())
-        if _acct:
-            # Check if account has admin privileges
-            if _acct.get("is_admin") == "yes":
-                st.session_state.admin_account = _acct
-                st.rerun()
+_admin = st.session_state.account
+if _admin.get("is_admin") != "yes":
+    st.error(t("no_access"))
+    st.switch_page("pages/participant_main.py")
 
-# ── Language Selector (Sidebar - Always Visible) ───────────────────────────────
+# ── Language Selector (Sidebar - Always Visible) ──────────────────────────────
 st.sidebar.markdown("---")
 st.sidebar.selectbox(
     t("language"),
@@ -278,55 +275,16 @@ st.sidebar.selectbox(
     on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector}),
     label_visibility="visible"
 )
-
-if st.session_state.admin_account is None:
-    st.title(f"🚴 {t('title')}")
-    st.subheader(t("login"))
-    _email = st.text_input("E-mail", placeholder=t("email_placeholder"))
-    if not _email.strip():
-        st.stop()
-    _acct = get_account_by_email(DB_PATH, _email.strip())
-    if not _acct:
-        _acct = create_account(DB_PATH, _email.strip(), _email.strip().split("@")[0])
-    # Check if account has admin privileges
-    if _acct.get("is_admin") != "yes":
-        st.error(t("no_access"))
-        st.stop()
-    st.session_state.admin_account = _acct
-    st.rerun()
-
-_admin = st.session_state.admin_account
 _col_title, _col_middle, _col_logout = st.columns([4, 2, 1])
 _col_title.title(f"🚴 {t('title')}")
 
-# Link to participant app with auto-login
-if _admin and _admin.get("email"):
-    participant_url = os.getenv("PARTICIPANT_APP_URL")
-
-    if not participant_url:
-        participant_url = "https://stamperstotogalore.streamlit.app"
-
-    params = {
-        "email": _admin["email"],
-        "auto_login": "true",
-    }
-
-    full_participant_url = f"{participant_url}?{urllib.parse.urlencode(params)}"
-    
-    # Use st.link_button for better styling (Streamlit 1.25+)
-    # Note: st.link_button opens in same tab by default
-    if hasattr(st, 'link_button'):
-        st.link_button(f"👥 {t('participant_app')}", full_participant_url, help="Naar deelnemer app", use_container_width=True)
-    else:
-        st.markdown(
-            f'<a href="{full_participant_url}" target="_self" style="display: inline-block; width: 100%; text-align: center;">� {t("participant_app")}</a>',
-            unsafe_allow_html=True,
-            help="Naar deelnemer app"
-        )
+with _col_middle:
+    if st.button(f"👥 {t('participant_app')}", help="Naar deelnemer app", use_container_width=True):
+        st.switch_page("pages/participant_main.py")
 
 if _col_logout.button(t("logout"), key="admin_logout"):
-    st.session_state.admin_account = None
-    st.rerun()
+    st.session_state.account = None
+    st.switch_page("participant.py")
 
 st.caption(f"{t('database_riders')} **{total:,}** {t('database_riders_suffix')}")
 
@@ -955,7 +913,7 @@ with tab_settings:
     st.subheader(f"👥 {t('teams')}")
     
     # ── Admin User Management ─────────────────────────────────────────────
-    if st.session_state.admin_account.get("is_admin") == "yes":
+    if st.session_state.account.get("is_admin") == "yes":
         st.markdown("---")
         st.subheader(f"👑 {t('admin_users')}")
         
