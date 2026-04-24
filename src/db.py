@@ -708,7 +708,8 @@ def load_stages(db_path: str, race_name: str) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
         rows = conn.execute(
-            "SELECT date, day, stage_name, route, km, pcs_url FROM stages WHERE race_name = ? ORDER BY date",
+            "SELECT date, day, stage_name, route, km, pcs_url FROM stages WHERE race_name = ?"
+            " ORDER BY CAST(SUBSTRING(date, 4, 2) AS INT), CAST(SUBSTRING(date, 1, 2) AS INT)",
             [race_name],
         ).fetchall()
         return [
