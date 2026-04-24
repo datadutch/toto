@@ -51,7 +51,7 @@ if "account" not in st.session_state:
 
 # ── Auth check ────────────────────────────────────────────────────────────────
 if st.session_state.account is None:
-    st.switch_page("participant.py")
+    st.rerun()
 
 account = st.session_state.account
 
@@ -76,7 +76,7 @@ with col_logout_header:
     else:
         if st.button("🚪 Uitloggen", key="btn_logout_header", help="Uitloggen"):
             st.session_state.account = None
-            st.switch_page("participant.py")
+            st.rerun()
 
 # ── Sidebar: User info ────────────────────────────────────────────────────────
 st.sidebar.markdown(f"<center><b>{t('participant_logged_in')}</b></center>", unsafe_allow_html=True)

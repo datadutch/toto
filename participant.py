@@ -2,7 +2,6 @@ import os
 import json
 import re
 import unicodedata
-import urllib.parse
 import streamlit as st
 from dotenv import load_dotenv
 from src.db import (
@@ -23,25 +22,14 @@ if _TOKEN:
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
 
-st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
-
-# Hide default multipage sidebar nav
-st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
-
 # ── Load Translations from JSON ──────────────────────────────────────────────
 with open("translations.json", "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
 # ── Translation function ─────────────────────────────────────────────────────
 def t(key: str) -> str:
-    """Get translation for current language."""
     lang = st.session_state.get("language", "nl")
     return TRANSLATIONS.get(lang, {}).get(key, key)
-
-# Create columns for title and login button
-col_title, col_login = st.columns([4, 1])
-with col_title:
-    st.title(f"🚴 LOGIN {t("participant_welcome")}")
 
 # ── Initialize session state ─────────────────────────────────────────────────
 if "language" not in st.session_state:
@@ -50,20 +38,14 @@ if "language" not in st.session_state:
 if "account" not in st.session_state:
     st.session_state.account = None
 
-# ── Check if running on Streamlit Cloud ──────────────────────────────────────
-_cloud_email = None
-_cloud_name = None
-_user = getattr(st, "user", None)
-
-if _user:
-    _cloud_email = _user.email
-    _cloud_name = getattr(_user, "name", None) or getattr(_user, "full_name", None)
-
-_is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
-
-# ── Session state ─────────────────────────────────────────────────────────────
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
+
+# ── Check if running on Streamlit Cloud ──────────────────────────────────────
+_user = getattr(st, "user", None)
+_cloud_email = getattr(_user, "email", None) if _user else None
+_cloud_name = (getattr(_user, "name", None) or getattr(_user, "full_name", None)) if _user else None
+_is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
 
 # ── Auto-login via environment variable ──────────────────────────────────────
 if st.session_state.account is None:
@@ -74,8 +56,15 @@ if st.session_state.account is None:
             st.session_state.account = account
             st.rerun()
 
-# Show the login form
+
 def show_login_form():
+    st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
+    st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
+
+    col_title, _ = st.columns([4, 1])
+    with col_title:
+        st.title(f"🚴 {t('participant_welcome')}")
+
     st.subheader(t("participant_login_register"))
 
     email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
@@ -93,7 +82,7 @@ def show_login_form():
     if account:
         st.session_state.account = account
         st.success(f"{t('participant_welcome_back')}, **{account['name']}**!")
-        st.switch_page("pages/participant_main.py")
+        st.rerun()
     else:
         st.info(t("participant_no_account"))
         name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input")
@@ -105,27 +94,30 @@ def show_login_form():
             if st.form_submit_button(t("participant_create_account"), width="stretch"):
                 account = create_account(DB_PATH, email_input.strip(), name_input.strip())
                 st.session_state.account = account
-                st.success(f"✅ Ingelogd! Welkom, **{account['name']}**!")
-                st.switch_page("pages/participant_main.py")
+                st.rerun()
 
     st.stop()
 
 
-# ── Manual login / registration (local dev or guest) ─────────────────────────
-if st.session_state.account is not None:
-    st.switch_page("pages/participant_main.py")
+# ── Entry point ───────────────────────────────────────────────────────────────
+if st.session_state.account is None:
+    show_login_form()
+else:
+    pg = st.navigation(
+        [
+            st.Page("pages/participant_main.py", title="Deelnemer", icon="🚴"),
+            st.Page("pages/administrator.py", title="Administrator", icon="👑"),
+        ],
+        position="hidden",
+    )
+    pg.run()
 
-show_login_form()
 
-
-# Return the account if logged in
 def get_account():
     return st.session_state.account
 
-# Return the DB_PATH
 def get_db_path():
     return DB_PATH
 
-# Return the _is_guest variable
 def get_is_guest():
     return _is_guest

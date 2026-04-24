@@ -257,7 +257,7 @@ if _ADMIN_EMAILS_OLD:
 
 # ── Auth check via participant session ────────────────────────────────────────
 if st.session_state.get("account") is None:
-    st.switch_page("participant.py")
+    st.rerun()
 
 _admin = st.session_state.account
 if _admin.get("is_admin") != "yes":
@@ -284,7 +284,7 @@ with _col_middle:
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.account = None
-    st.switch_page("participant.py")
+    st.rerun()
 
 st.caption(f"{t('database_riders')} **{total:,}** {t('database_riders_suffix')}")
 
