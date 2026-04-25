@@ -5,7 +5,6 @@ import unicodedata
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
-from supabase.lib.client_options import SyncClientOptions
 from src.db import get_account_by_email, create_account
 
 def _normalize(text: str) -> str:
@@ -58,17 +57,9 @@ _cloud_email = getattr(_user, "email", None) if _user else None
 _cloud_name = (getattr(_user, "name", None) or getattr(_user, "full_name", None)) if _user else None
 _is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
 
-# ── Supabase client (stored in session state to preserve PKCE code_verifier) ─
-# The PKCE code_verifier is generated when sign_in_with_otp is called and must
-# still be present when exchange_code_for_session is called after the redirect.
-# Storing the client in session_state keeps it alive across Streamlit reruns.
 def _get_supabase():
     if "_supabase" not in st.session_state:
-        st.session_state._supabase = create_client(
-            SUPABASE_URL,
-            SUPABASE_ANON_KEY,
-            options=SyncClientOptions(flow_type="pkce"),
-        )
+        st.session_state._supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     return st.session_state._supabase
 
 # ── Auto-login via environment variable ──────────────────────────────────────
@@ -80,26 +71,25 @@ if st.session_state.account is None:
             st.session_state.account = acct
             st.rerun()
 
-# ── Handle magic link callback (?code= added to URL by Supabase redirect) ────
-_auth_code = st.query_params.get("code")
-if _auth_code and st.session_state.account is None:
+# ── Handle magic link callback (?access_token= set by JS bridge below) ───────
+_access_token = st.query_params.get("access_token")
+if _access_token and st.session_state.account is None:
     try:
         sb = _get_supabase()
-        resp = sb.auth.exchange_code_for_session({"auth_code": _auth_code})
-        _verified_email = resp.session.user.email
+        user_resp = sb.auth.get_user(jwt=_access_token)
+        _verified_email = user_resp.user.email
         st.query_params.clear()
         acct = get_account_by_email(DB_PATH, _verified_email)
         if acct:
             st.session_state.account = acct
         else:
-            # New user: email verified, still need a display name
             st.session_state.pending_email = _verified_email
         st.rerun()
     except Exception:
         st.query_params.clear()
         st.session_state.auth_error = True
         st.rerun()
-elif _auth_code:
+elif _access_token:
     st.query_params.clear()
     st.rerun()
 
@@ -192,6 +182,32 @@ def _show_email_step():
 def show_login_form():
     st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
+
+    # Supabase magic links use the implicit flow: the access_token lands in the
+    # URL hash (#access_token=...) which Python cannot read. This JS runs in the
+    # Streamlit component iframe (same origin), reads the parent window's hash,
+    # and reloads the page with ?access_token=... so Python can handle it.
+    st.components.v1.html("""
+    <script>
+    (function() {
+        try {
+            var hash = window.parent.location.hash;
+            if (hash && hash.includes('access_token')) {
+                var params = new URLSearchParams(hash.substring(1));
+                var at = params.get('access_token');
+                var rt = params.get('refresh_token') || '';
+                if (at) {
+                    window.parent.location.replace(
+                        window.parent.location.pathname
+                        + '?access_token=' + encodeURIComponent(at)
+                        + '&refresh_token=' + encodeURIComponent(rt)
+                    );
+                }
+            }
+        } catch(e) {}
+    })();
+    </script>
+    """, height=0)
 
     col_title, _ = st.columns([4, 1])
     with col_title:
