@@ -51,6 +51,13 @@ def _get_supabase():
         st.session_state._supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     return st.session_state._supabase
 
+# ── Detect post-verification redirect ────────────────────────────────────────
+_qp = st.query_params
+if "code" in _qp and not st.session_state.get("email_confirmed"):
+    st.session_state["email_confirmed"] = True
+    st.query_params.clear()
+    st.rerun()
+
 # ── Auto-login via environment variable ──────────────────────────────────────
 if st.session_state.account is None:
     env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
@@ -190,6 +197,9 @@ def show_login_form():
         st.title(f"🚴 {t('participant_welcome')}")
 
     st.subheader(t("participant_login_register"))
+
+    if st.session_state.pop("email_confirmed", False):
+        st.success("✅ Je e-mailadres is bevestigd! Je kunt nu hieronder inloggen met een inlogcode.")
 
     if st.session_state.get("pending_email"):
         _show_name_form()
