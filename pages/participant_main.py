@@ -239,7 +239,7 @@ if not registration_open and not existing_team:
     else:
         stages_with_results = [s for s in stages if load_stage_results(DB_PATH, selected_race, s["Stage"])]
         if not stages_with_results:
-            st.info("No results entered yet for this race.")
+            st.info(t("no_results_this_race"))
         else:
             try:
                 scores = calculate_scores(DB_PATH, selected_race)
@@ -483,7 +483,7 @@ elif view == "scores":
         stages_with_results = [s for s in stages if load_stage_results(DB_PATH, selected_race, s["Stage"])]
 
         if not stages_with_results:
-            st.info("No results entered yet for this race.")
+            st.info(t("no_results_this_race"))
         else:
             st.subheader(f"Completed stages: {len(stages_with_results)} / {len(stages)}")
 
