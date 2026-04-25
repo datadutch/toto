@@ -73,19 +73,19 @@ if st.session_state.account is None:
 def _show_name_form():
     """New user: email verified, still needs a display name."""
     email = st.session_state.pending_email
-    st.success(f"✅ E-mailadres **{email}** geverifieerd!")
-    st.subheader("Welkom! Kies een naam voor je account.")
+    st.success(t("participant_email_verified").format(email=email))
+    st.subheader(t("participant_welcome_choose_name"))
 
     with st.form("name_form"):
         name_input = st.text_input(
             t("participant_your_name"),
             placeholder="e.g. Johan (max 50 chars)",
         )
-        submitted = st.form_submit_button("✅ Account aanmaken", type="primary", use_container_width=True)
+        submitted = st.form_submit_button(t("participant_create_account"), type="primary", use_container_width=True)
 
     if submitted:
         if not name_input.strip():
-            st.error("Voer een naam in.")
+            st.error(t("participant_error_name_required"))
         elif len(name_input.strip()) > 50:
             st.error(t("participant_error_username_length"))
         else:
@@ -100,18 +100,18 @@ def _show_name_form():
 def _show_otp_step():
     """Step 2: user received the code by email, enters it here."""
     email = st.session_state.otp_email
-    st.info(f"📧 Code verstuurd naar **{email}**. Vul hem hieronder in.")
+    st.info(t("participant_otp_sent").format(email=email))
 
     with st.form("otp_form"):
         code_input = st.text_input(
-            "Inlogcode",
+            t("participant_otp_code_label"),
             placeholder="12345678",
             max_chars=8,
-            help="8-cijferige code uit de e-mail",
+            help=t("participant_otp_help"),
         )
         col_ok, col_back = st.columns([2, 1])
-        submitted = col_ok.form_submit_button("✅ Inloggen", use_container_width=True, type="primary")
-        back = col_back.form_submit_button("↩ Terug", use_container_width=True)
+        submitted = col_ok.form_submit_button(t("participant_login_btn"), use_container_width=True, type="primary")
+        back = col_back.form_submit_button(t("participant_back"), use_container_width=True)
 
     if back:
         st.session_state.pop("otp_email", None)
@@ -119,7 +119,7 @@ def _show_otp_step():
 
     if submitted:
         if not code_input.strip():
-            st.error("Voer de 8-cijferige code in.")
+            st.error(t("participant_otp_required"))
             st.stop()
         try:
             sb = _get_supabase()
@@ -137,19 +137,19 @@ def _show_otp_step():
                 st.session_state.pending_email = verified_email
             st.rerun()
         except Exception:
-            st.error("❌ Ongeldige of verlopen code. Probeer opnieuw of vraag een nieuwe code aan.")
+            st.error(t("participant_otp_invalid"))
 
     st.divider()
-    if st.button("📨 Nieuwe code aanvragen"):
+    if st.button(t("participant_otp_resend")):
         try:
             sb = _get_supabase()
             sb.auth.sign_in_with_otp({
                 "email": email,
                 "options": {"should_create_user": True},
             })
-            st.success("Nieuwe code verstuurd.")
+            st.success(t("participant_otp_resent"))
         except Exception as e:
-            st.error(f"Kon geen code versturen: {e}")
+            st.error(f"{t('participant_otp_send_error')} {e}")
 
     st.stop()
 
@@ -157,13 +157,13 @@ def _show_otp_step():
 def _show_email_step():
     """Step 1: ask for email and send OTP code."""
     if st.session_state.pop("auth_error", False):
-        st.error("❌ De code is verlopen of ongeldig. Vraag hieronder een nieuwe aan.")
+        st.error(t("participant_auth_error"))
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         st.error("⚠️ Supabase is niet geconfigureerd. Stel SUPABASE_URL en SUPABASE_ANON_KEY in als secrets.")
         st.stop()
 
-    email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
+    email_input = st.text_input(t("email"), placeholder=t("email_placeholder"))
 
     if not email_input.strip():
         st.stop()
@@ -173,7 +173,7 @@ def _show_email_step():
         st.error(t("participant_invalid_email"))
         st.stop()
 
-    if st.button("📨 Stuur inlogcode", type="primary", use_container_width=True):
+    if st.button(t("participant_send_otp"), type="primary", use_container_width=True):
         try:
             sb = _get_supabase()
             is_known_user = get_account_by_email(DB_PATH, email_input.strip()) is not None
@@ -198,14 +198,11 @@ def _show_email_step():
 def _show_confirm_email_step():
     """New user: confirmation email sent, waiting for them to click the link."""
     email = st.session_state.confirm_email
-    st.info(f"📧 Er is een bevestigingsmail verstuurd naar **{email}**.")
-    st.markdown(
-        "Klik op de link in de e-mail om je adres te bevestigen. "
-        "Daarna kun je hier inloggen met een inlogcode."
-    )
+    st.info(t("participant_confirm_sent").format(email=email))
+    st.markdown(t("participant_confirm_instructions"))
     st.divider()
     col_retry, col_back = st.columns(2)
-    if col_retry.button("📨 Mail opnieuw versturen", use_container_width=True):
+    if col_retry.button(t("participant_confirm_resend"), use_container_width=True):
         try:
             sb = _get_supabase()
             sb.auth.sign_in_with_otp({
@@ -215,10 +212,10 @@ def _show_confirm_email_step():
                     "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
                 },
             })
-            st.success("Bevestigingsmail opnieuw verstuurd.")
+            st.success(t("participant_confirm_resent"))
         except Exception as e:
-            st.error(f"Kon geen mail versturen: {e}")
-    if col_back.button("↩ Terug", use_container_width=True):
+            st.error(f"{t('participant_otp_send_error')} {e}")
+    if col_back.button(t("participant_back"), use_container_width=True):
         st.session_state.pop("confirm_email", None)
         st.rerun()
     st.stop()
@@ -235,7 +232,17 @@ def show_login_form():
     st.subheader(t("participant_login_register"))
 
     if st.session_state.pop("email_confirmed", False):
-        st.success("✅ Je e-mailadres is bevestigd! Je kunt nu hieronder inloggen met een inlogcode. Je kunt nu het andere tabblad sluiten.")
+        st.success(t("participant_email_confirmed"))
+
+    st.sidebar.selectbox(
+        t("language"),
+        options=["nl", "en"],
+        index=0 if st.session_state.language == "nl" else 1,
+        format_func=lambda x: "🇳🇱 Nederlands" if x == "nl" else "🇬🇧 English",
+        key="lang_selector_login",
+        on_change=lambda: st.session_state.update({"language": st.session_state.lang_selector_login}),
+        label_visibility="visible",
+    )
 
     if st.session_state.get("pending_email"):
         _show_name_form()
