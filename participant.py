@@ -176,6 +176,7 @@ def _show_email_step():
     if st.button("📨 Stuur inlogcode", type="primary", use_container_width=True):
         try:
             sb = _get_supabase()
+            is_known_user = get_account_by_email(DB_PATH, email_input.strip()) is not None
             sb.auth.sign_in_with_otp({
                 "email": email_input.strip(),
                 "options": {
@@ -183,11 +184,43 @@ def _show_email_step():
                     "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
                 },
             })
-            st.session_state.otp_email = email_input.strip()
+            if is_known_user:
+                st.session_state.otp_email = email_input.strip()
+            else:
+                st.session_state.confirm_email = email_input.strip()
             st.rerun()
         except Exception as e:
             st.error(f"Kon geen code versturen: {e}")
 
+    st.stop()
+
+
+def _show_confirm_email_step():
+    """New user: confirmation email sent, waiting for them to click the link."""
+    email = st.session_state.confirm_email
+    st.info(f"📧 Er is een bevestigingsmail verstuurd naar **{email}**.")
+    st.markdown(
+        "Klik op de link in de e-mail om je adres te bevestigen. "
+        "Daarna kun je hier inloggen met een inlogcode."
+    )
+    st.divider()
+    col_retry, col_back = st.columns(2)
+    if col_retry.button("📨 Mail opnieuw versturen", use_container_width=True):
+        try:
+            sb = _get_supabase()
+            sb.auth.sign_in_with_otp({
+                "email": email,
+                "options": {
+                    "should_create_user": True,
+                    "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
+                },
+            })
+            st.success("Bevestigingsmail opnieuw verstuurd.")
+        except Exception as e:
+            st.error(f"Kon geen mail versturen: {e}")
+    if col_back.button("↩ Terug", use_container_width=True):
+        st.session_state.pop("confirm_email", None)
+        st.rerun()
     st.stop()
 
 
@@ -208,6 +241,8 @@ def show_login_form():
         _show_name_form()
     elif st.session_state.get("otp_email"):
         _show_otp_step()
+    elif st.session_state.get("confirm_email"):
+        _show_confirm_email_step()
     else:
         _show_email_step()
 
