@@ -1,11 +1,7 @@
 import os
 import json
 import re
-import base64
-import hashlib
-import secrets
 import unicodedata
-import httpx
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
@@ -28,21 +24,10 @@ else:
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
-def _get_app_url() -> str:
-    """Derive the app base URL from the incoming request — no env var needed."""
-    try:
-        host = st.context.headers.get("host", "")
-        if host and "localhost" not in host and "127.0.0.1" not in host:
-            return f"https://{host}"
-    except Exception:
-        pass
-    return os.getenv("APP_URL", "http://localhost:8501")
-
 # ── Load Translations from JSON ──────────────────────────────────────────────
 with open("translations.json", "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
-# ── Translation function ─────────────────────────────────────────────────────
 def t(key: str) -> str:
     lang = st.session_state.get("language", "nl")
     return TRANSLATIONS.get(lang, {}).get(key, key)
@@ -75,86 +60,11 @@ if st.session_state.account is None:
             st.session_state.account = acct
             st.rerun()
 
-# ── Handle magic link callback (?code= set by Supabase PKCE redirect) ────────
-# Supabase sends ?code=... when PKCE code_challenge was included in the OTP
-# request. We exchange it using the code_verifier stored in session_state.
-_auth_code = st.query_params.get("code")
-if _auth_code and st.session_state.account is None:
-    _verifier = st.session_state.get("_pkce_verifier")
-    if not _verifier:
-        # Verifier missing: link was opened in a different browser session.
-        st.query_params.clear()
-        st.session_state.auth_error = "other_session"
-        st.rerun()
-    else:
-        try:
-            sb = _get_supabase()
-            resp = sb.auth.exchange_code_for_session({
-                "auth_code": _auth_code,
-                "code_verifier": _verifier,
-            })
-            _verified_email = resp.session.user.email
-            st.session_state.pop("_pkce_verifier", None)
-            st.query_params.clear()
-            acct = get_account_by_email(DB_PATH, _verified_email)
-            if acct:
-                st.session_state.account = acct
-            else:
-                st.session_state.pending_email = _verified_email
-            st.rerun()
-        except Exception:
-            st.session_state.pop("_pkce_verifier", None)
-            st.query_params.clear()
-            st.session_state.auth_error = True
-            st.rerun()
-elif _auth_code:
-    st.query_params.clear()
-    st.rerun()
-
-
-# ── PKCE helpers ─────────────────────────────────────────────────────────────
-
-def _pkce_pair() -> tuple[str, str]:
-    """Return (code_verifier, code_challenge) for a new PKCE exchange."""
-    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()
-    ).rstrip(b"=").decode()
-    return verifier, challenge
-
-
-def _send_magic_link(email: str) -> None:
-    """Send a magic link via Supabase REST API with PKCE code_challenge.
-
-    By including code_challenge the magic link will redirect back with
-    ?code=... (query param) instead of #access_token=... (URL hash).
-    Streamlit can read query params; it cannot read URL fragments.
-    """
-    verifier, challenge = _pkce_pair()
-    with httpx.Client(timeout=10) as client:
-        r = client.post(
-            f"{SUPABASE_URL}/auth/v1/otp",
-            headers={
-                "apikey": SUPABASE_ANON_KEY,
-                "Content-Type": "application/json",
-            },
-            params={"redirect_to": _get_app_url()},
-            json={
-                "email": email,
-                "create_user": True,
-                "gotrue_meta_security": {},
-                "code_challenge": challenge,
-                "code_challenge_method": "s256",
-            },
-        )
-        r.raise_for_status()
-    st.session_state._pkce_verifier = verifier
-
 
 # ── Login sub-views ───────────────────────────────────────────────────────────
 
 def _show_name_form():
-    """New user: email already verified, still needs a display name."""
+    """New user: email verified, still needs a display name."""
     email = st.session_state.pending_email
     st.success(f"✅ E-mailadres **{email}** geverifieerd!")
     st.subheader("Welkom! Kies een naam voor je account.")
@@ -180,35 +90,67 @@ def _show_name_form():
     st.stop()
 
 
-def _show_magic_link_sent():
-    """Waiting state after magic link was dispatched."""
-    email = st.session_state.get("magic_link_email", "")
-    st.info(f"📧 Magic link verstuurd naar **{email}**.")
-    st.markdown(
-        "Klik de link in je e-mail. "
-        "**Gebruik dezelfde browser** als waar je de app hebt geopend."
-    )
-    st.caption("Geen e-mail ontvangen? Controleer je spam-folder.")
+def _show_otp_step():
+    """Step 2: user received the code by email, enters it here."""
+    email = st.session_state.otp_email
+    st.info(f"📧 Code verstuurd naar **{email}**. Vul hem hieronder in.")
 
-    if st.button("↩ Ander e-mailadres gebruiken"):
-        st.session_state.pop("magic_link_sent", None)
-        st.session_state.pop("magic_link_email", None)
-        st.session_state.pop("_pkce_verifier", None)
+    with st.form("otp_form"):
+        code_input = st.text_input(
+            "Inlogcode",
+            placeholder="123456",
+            max_chars=6,
+            help="6-cijferige code uit de e-mail",
+        )
+        col_ok, col_back = st.columns([2, 1])
+        submitted = col_ok.form_submit_button("✅ Inloggen", use_container_width=True, type="primary")
+        back = col_back.form_submit_button("↩ Terug", use_container_width=True)
+
+    if back:
+        st.session_state.pop("otp_email", None)
         st.rerun()
+
+    if submitted:
+        if not code_input.strip():
+            st.error("Voer de 6-cijferige code in.")
+            st.stop()
+        try:
+            sb = _get_supabase()
+            resp = sb.auth.verify_otp({
+                "email": email,
+                "token": code_input.strip(),
+                "type": "email",
+            })
+            verified_email = resp.user.email
+            st.session_state.pop("otp_email", None)
+            acct = get_account_by_email(DB_PATH, verified_email)
+            if acct:
+                st.session_state.account = acct
+            else:
+                st.session_state.pending_email = verified_email
+            st.rerun()
+        except Exception:
+            st.error("❌ Ongeldige of verlopen code. Probeer opnieuw of vraag een nieuwe code aan.")
+
+    st.divider()
+    if st.button("📨 Nieuwe code aanvragen"):
+        try:
+            sb = _get_supabase()
+            sb.auth.sign_in_with_otp({
+                "email": email,
+                "options": {"should_create_user": True},
+            })
+            st.success("Nieuwe code verstuurd.")
+        except Exception as e:
+            st.error(f"Kon geen code versturen: {e}")
 
     st.stop()
 
 
 def _show_email_step():
-    """Initial step: ask for email and dispatch magic link."""
-    err = st.session_state.pop("auth_error", None)
-    if err == "other_session":
-        st.warning(
-            "⚠️ De link is geopend in een andere browser of een nieuw venster. "
-            "Vraag hieronder een nieuwe link aan en klik die in **deze browser**."
-        )
-    elif err:
-        st.error("❌ De verificatielink is verlopen of ongeldig. Vraag hieronder een nieuwe aan.")
+    """Step 1: ask for email and send OTP code."""
+    if st.session_state.pop("auth_error", False):
+        st.error("❌ De code is verlopen of ongeldig. Vraag hieronder een nieuwe aan.")
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         st.error("⚠️ Supabase is niet geconfigureerd. Stel SUPABASE_URL en SUPABASE_ANON_KEY in als secrets.")
@@ -224,14 +166,17 @@ def _show_email_step():
         st.error(t("participant_invalid_email"))
         st.stop()
 
-    if st.button("📨 Stuur magic link", type="primary", use_container_width=True):
+    if st.button("📨 Stuur inlogcode", type="primary", use_container_width=True):
         try:
-            _send_magic_link(email_input.strip())
-            st.session_state.magic_link_sent = True
-            st.session_state.magic_link_email = email_input.strip()
+            sb = _get_supabase()
+            sb.auth.sign_in_with_otp({
+                "email": email_input.strip(),
+                "options": {"should_create_user": True},
+            })
+            st.session_state.otp_email = email_input.strip()
             st.rerun()
         except Exception as e:
-            st.error(f"Kon geen magic link versturen: {e}")
+            st.error(f"Kon geen code versturen: {e}")
 
     st.stop()
 
@@ -248,8 +193,8 @@ def show_login_form():
 
     if st.session_state.get("pending_email"):
         _show_name_form()
-    elif st.session_state.get("magic_link_sent"):
-        _show_magic_link_sent()
+    elif st.session_state.get("otp_email"):
+        _show_otp_step()
     else:
         _show_email_step()
 
