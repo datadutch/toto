@@ -98,9 +98,9 @@ def _show_otp_step():
     with st.form("otp_form"):
         code_input = st.text_input(
             "Inlogcode",
-            placeholder="123456",
-            max_chars=6,
-            help="6-cijferige code uit de e-mail",
+            placeholder="12345678",
+            max_chars=8,
+            help="8-cijferige code uit de e-mail",
         )
         col_ok, col_back = st.columns([2, 1])
         submitted = col_ok.form_submit_button("✅ Inloggen", use_container_width=True, type="primary")
@@ -112,7 +112,7 @@ def _show_otp_step():
 
     if submitted:
         if not code_input.strip():
-            st.error("Voer de 6-cijferige code in.")
+            st.error("Voer de 8-cijferige code in.")
             st.stop()
         try:
             sb = _get_supabase()
