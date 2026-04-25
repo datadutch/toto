@@ -53,7 +53,7 @@ def _get_supabase():
 
 # ── Detect post-verification redirect ────────────────────────────────────────
 _qp = st.query_params
-if "code" in _qp and not st.session_state.get("email_confirmed"):
+if _qp.get("verified") == "1" and not st.session_state.get("email_confirmed"):
     st.session_state["email_confirmed"] = True
     st.query_params.clear()
     st.rerun()
@@ -178,7 +178,10 @@ def _show_email_step():
             sb = _get_supabase()
             sb.auth.sign_in_with_otp({
                 "email": email_input.strip(),
-                "options": {"should_create_user": True},
+                "options": {
+                    "should_create_user": True,
+                    "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
+                },
             })
             st.session_state.otp_email = email_input.strip()
             st.rerun()
