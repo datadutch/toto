@@ -1,7 +1,11 @@
 import os
 import json
 import re
+import base64
+import hashlib
+import secrets
 import unicodedata
+import httpx
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
@@ -71,33 +75,86 @@ if st.session_state.account is None:
             st.session_state.account = acct
             st.rerun()
 
-# ── Handle magic link callback (?access_token= set by JS bridge below) ───────
-_access_token = st.query_params.get("access_token")
-if _access_token and st.session_state.account is None:
-    try:
-        sb = _get_supabase()
-        user_resp = sb.auth.get_user(jwt=_access_token)
-        _verified_email = user_resp.user.email
+# ── Handle magic link callback (?code= set by Supabase PKCE redirect) ────────
+# Supabase sends ?code=... when PKCE code_challenge was included in the OTP
+# request. We exchange it using the code_verifier stored in session_state.
+_auth_code = st.query_params.get("code")
+if _auth_code and st.session_state.account is None:
+    _verifier = st.session_state.get("_pkce_verifier")
+    if not _verifier:
+        # Verifier missing: link was opened in a different browser session.
         st.query_params.clear()
-        acct = get_account_by_email(DB_PATH, _verified_email)
-        if acct:
-            st.session_state.account = acct
-        else:
-            st.session_state.pending_email = _verified_email
+        st.session_state.auth_error = "other_session"
         st.rerun()
-    except Exception:
-        st.query_params.clear()
-        st.session_state.auth_error = True
-        st.rerun()
-elif _access_token:
+    else:
+        try:
+            sb = _get_supabase()
+            resp = sb.auth.exchange_code_for_session({
+                "auth_code": _auth_code,
+                "code_verifier": _verifier,
+            })
+            _verified_email = resp.session.user.email
+            st.session_state.pop("_pkce_verifier", None)
+            st.query_params.clear()
+            acct = get_account_by_email(DB_PATH, _verified_email)
+            if acct:
+                st.session_state.account = acct
+            else:
+                st.session_state.pending_email = _verified_email
+            st.rerun()
+        except Exception:
+            st.session_state.pop("_pkce_verifier", None)
+            st.query_params.clear()
+            st.session_state.auth_error = True
+            st.rerun()
+elif _auth_code:
     st.query_params.clear()
     st.rerun()
+
+
+# ── PKCE helpers ─────────────────────────────────────────────────────────────
+
+def _pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge) for a new PKCE exchange."""
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+def _send_magic_link(email: str) -> None:
+    """Send a magic link via Supabase REST API with PKCE code_challenge.
+
+    By including code_challenge the magic link will redirect back with
+    ?code=... (query param) instead of #access_token=... (URL hash).
+    Streamlit can read query params; it cannot read URL fragments.
+    """
+    verifier, challenge = _pkce_pair()
+    with httpx.Client(timeout=10) as client:
+        r = client.post(
+            f"{SUPABASE_URL}/auth/v1/otp",
+            headers={
+                "apikey": SUPABASE_ANON_KEY,
+                "Content-Type": "application/json",
+            },
+            params={"redirect_to": _get_app_url()},
+            json={
+                "email": email,
+                "create_user": True,
+                "gotrue_meta_security": {},
+                "code_challenge": challenge,
+                "code_challenge_method": "s256",
+            },
+        )
+        r.raise_for_status()
+    st.session_state._pkce_verifier = verifier
 
 
 # ── Login sub-views ───────────────────────────────────────────────────────────
 
 def _show_name_form():
-    """New user: email already verified via magic link, just needs a display name."""
+    """New user: email already verified, still needs a display name."""
     email = st.session_state.pending_email
     st.success(f"✅ E-mailadres **{email}** geverifieerd!")
     st.subheader("Welkom! Kies een naam voor je account.")
@@ -128,14 +185,15 @@ def _show_magic_link_sent():
     email = st.session_state.get("magic_link_email", "")
     st.info(f"📧 Magic link verstuurd naar **{email}**.")
     st.markdown(
-        "Klik de link in je e-mail om in te loggen. "
-        "**Laat dit venster open** — na het klikken word je hier automatisch ingelogd."
+        "Klik de link in je e-mail. "
+        "**Gebruik dezelfde browser** als waar je de app hebt geopend."
     )
     st.caption("Geen e-mail ontvangen? Controleer je spam-folder.")
 
     if st.button("↩ Ander e-mailadres gebruiken"):
         st.session_state.pop("magic_link_sent", None)
         st.session_state.pop("magic_link_email", None)
+        st.session_state.pop("_pkce_verifier", None)
         st.rerun()
 
     st.stop()
@@ -143,7 +201,13 @@ def _show_magic_link_sent():
 
 def _show_email_step():
     """Initial step: ask for email and dispatch magic link."""
-    if st.session_state.pop("auth_error", False):
+    err = st.session_state.pop("auth_error", None)
+    if err == "other_session":
+        st.warning(
+            "⚠️ De link is geopend in een andere browser of een nieuw venster. "
+            "Vraag hieronder een nieuwe link aan en klik die in **deze browser**."
+        )
+    elif err:
         st.error("❌ De verificatielink is verlopen of ongeldig. Vraag hieronder een nieuwe aan.")
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -162,14 +226,7 @@ def _show_email_step():
 
     if st.button("📨 Stuur magic link", type="primary", use_container_width=True):
         try:
-            sb = _get_supabase()
-            sb.auth.sign_in_with_otp({
-                "email": email_input.strip(),
-                "options": {
-                    "email_redirect_to": _get_app_url(),
-                    "should_create_user": True,
-                },
-            })
+            _send_magic_link(email_input.strip())
             st.session_state.magic_link_sent = True
             st.session_state.magic_link_email = email_input.strip()
             st.rerun()
@@ -182,32 +239,6 @@ def _show_email_step():
 def show_login_form():
     st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
-
-    # Supabase magic links use the implicit flow: the access_token lands in the
-    # URL hash (#access_token=...) which Python cannot read. This JS runs in the
-    # Streamlit component iframe (same origin), reads the parent window's hash,
-    # and reloads the page with ?access_token=... so Python can handle it.
-    st.components.v1.html("""
-    <script>
-    (function() {
-        try {
-            var hash = window.parent.location.hash;
-            if (hash && hash.includes('access_token')) {
-                var params = new URLSearchParams(hash.substring(1));
-                var at = params.get('access_token');
-                var rt = params.get('refresh_token') || '';
-                if (at) {
-                    window.parent.location.replace(
-                        window.parent.location.pathname
-                        + '?access_token=' + encodeURIComponent(at)
-                        + '&refresh_token=' + encodeURIComponent(rt)
-                    );
-                }
-            }
-        } catch(e) {}
-    })();
-    </script>
-    """, height=0)
 
     col_title, _ = st.columns([4, 1])
     with col_title:
