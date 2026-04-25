@@ -4,3 +4,4 @@ duckdb
 streamlit
 python-dotenv
 mistralai==1.10.0
+supabase==2.22.4

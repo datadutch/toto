@@ -60,4 +60,5 @@ data/*.db
 pdfs/
 
 .vibe.md
+.claude
 unused_analysis.md

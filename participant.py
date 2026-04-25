@@ -4,10 +4,9 @@ import re
 import unicodedata
 import streamlit as st
 from dotenv import load_dotenv
-from src.db import (
-    init_fantasy_tables, init_accounts_table,
-    get_account_by_email, create_account,
-)
+from supabase import create_client
+from supabase.lib.client_options import SyncClientOptions
+from src.db import get_account_by_email, create_account
 
 def _normalize(text: str) -> str:
     """Lowercase + strip diacritics so 'pogacar' matches 'Pogačar'."""
@@ -22,6 +21,20 @@ if _TOKEN:
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cycling.duckdb")
 
+# ── Supabase config ──────────────────────────────────────────────────────────
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+
+def _get_app_url() -> str:
+    """Derive the app base URL from the incoming request — no env var needed."""
+    try:
+        host = st.context.headers.get("host", "")
+        if host and "localhost" not in host and "127.0.0.1" not in host:
+            return f"https://{host}"
+    except Exception:
+        pass
+    return os.getenv("APP_URL", "http://localhost:8501")
+
 # ── Load Translations from JSON ──────────────────────────────────────────────
 with open("translations.json", "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
@@ -34,10 +47,8 @@ def t(key: str) -> str:
 # ── Initialize session state ─────────────────────────────────────────────────
 if "language" not in st.session_state:
     st.session_state.language = "nl"
-
 if "account" not in st.session_state:
     st.session_state.account = None
-
 if "participant_view" not in st.session_state:
     st.session_state.participant_view = "register"
 
@@ -47,14 +58,135 @@ _cloud_email = getattr(_user, "email", None) if _user else None
 _cloud_name = (getattr(_user, "name", None) or getattr(_user, "full_name", None)) if _user else None
 _is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
 
+# ── Supabase client (stored in session state to preserve PKCE code_verifier) ─
+# The PKCE code_verifier is generated when sign_in_with_otp is called and must
+# still be present when exchange_code_for_session is called after the redirect.
+# Storing the client in session_state keeps it alive across Streamlit reruns.
+def _get_supabase():
+    if "_supabase" not in st.session_state:
+        st.session_state._supabase = create_client(
+            SUPABASE_URL,
+            SUPABASE_ANON_KEY,
+            options=SyncClientOptions(flow_type="pkce"),
+        )
+    return st.session_state._supabase
+
 # ── Auto-login via environment variable ──────────────────────────────────────
 if st.session_state.account is None:
     env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
     if env_auto_login_email:
-        account = get_account_by_email(DB_PATH, env_auto_login_email)
-        if account:
-            st.session_state.account = account
+        acct = get_account_by_email(DB_PATH, env_auto_login_email)
+        if acct:
+            st.session_state.account = acct
             st.rerun()
+
+# ── Handle magic link callback (?code= added to URL by Supabase redirect) ────
+_auth_code = st.query_params.get("code")
+if _auth_code and st.session_state.account is None:
+    try:
+        sb = _get_supabase()
+        resp = sb.auth.exchange_code_for_session({"auth_code": _auth_code})
+        _verified_email = resp.session.user.email
+        st.query_params.clear()
+        acct = get_account_by_email(DB_PATH, _verified_email)
+        if acct:
+            st.session_state.account = acct
+        else:
+            # New user: email verified, still need a display name
+            st.session_state.pending_email = _verified_email
+        st.rerun()
+    except Exception:
+        st.query_params.clear()
+        st.session_state.auth_error = True
+        st.rerun()
+elif _auth_code:
+    st.query_params.clear()
+    st.rerun()
+
+
+# ── Login sub-views ───────────────────────────────────────────────────────────
+
+def _show_name_form():
+    """New user: email already verified via magic link, just needs a display name."""
+    email = st.session_state.pending_email
+    st.success(f"✅ E-mailadres **{email}** geverifieerd!")
+    st.subheader("Welkom! Kies een naam voor je account.")
+
+    with st.form("name_form"):
+        name_input = st.text_input(
+            t("participant_your_name"),
+            placeholder="e.g. Johan (max 50 chars)",
+        )
+        submitted = st.form_submit_button("✅ Account aanmaken", type="primary", use_container_width=True)
+
+    if submitted:
+        if not name_input.strip():
+            st.error("Voer een naam in.")
+        elif len(name_input.strip()) > 50:
+            st.error(t("participant_error_username_length"))
+        else:
+            acct = create_account(DB_PATH, email, name_input.strip())
+            st.session_state.account = acct
+            st.session_state.pop("pending_email", None)
+            st.rerun()
+
+    st.stop()
+
+
+def _show_magic_link_sent():
+    """Waiting state after magic link was dispatched."""
+    email = st.session_state.get("magic_link_email", "")
+    st.info(f"📧 Magic link verstuurd naar **{email}**.")
+    st.markdown(
+        "Klik de link in je e-mail om in te loggen. "
+        "**Laat dit venster open** — na het klikken word je hier automatisch ingelogd."
+    )
+    st.caption("Geen e-mail ontvangen? Controleer je spam-folder.")
+
+    if st.button("↩ Ander e-mailadres gebruiken"):
+        st.session_state.pop("magic_link_sent", None)
+        st.session_state.pop("magic_link_email", None)
+        st.rerun()
+
+    st.stop()
+
+
+def _show_email_step():
+    """Initial step: ask for email and dispatch magic link."""
+    if st.session_state.pop("auth_error", False):
+        st.error("❌ De verificatielink is verlopen of ongeldig. Vraag hieronder een nieuwe aan.")
+
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        st.error("⚠️ Supabase is niet geconfigureerd. Stel SUPABASE_URL en SUPABASE_ANON_KEY in als secrets.")
+        st.stop()
+
+    email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
+
+    if not email_input.strip():
+        st.stop()
+
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, email_input.strip()):
+        st.error(t("participant_invalid_email"))
+        st.stop()
+
+    if st.button("📨 Stuur magic link", type="primary", use_container_width=True):
+        try:
+            sb = _get_supabase()
+            sb.auth.sign_in_with_otp({
+                "email": email_input.strip(),
+                "options": {
+                    "email_redirect_to": _get_app_url(),
+                    "should_create_user": True,
+                },
+            })
+            st.session_state.magic_link_sent = True
+            st.session_state.magic_link_email = email_input.strip()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Kon geen magic link versturen: {e}")
+
+    st.stop()
 
 
 def show_login_form():
@@ -67,36 +199,12 @@ def show_login_form():
 
     st.subheader(t("participant_login_register"))
 
-    email_input = st.text_input(t("email"), placeholder="e.g. johan@example.com")
-
-    if not email_input.strip():
-        st.stop()
-
-    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if not re.match(email_pattern, email_input.strip()):
-        st.error(t("participant_invalid_email"))
-        st.stop()
-
-    account = get_account_by_email(DB_PATH, email_input.strip())
-
-    if account:
-        st.session_state.account = account
-        st.success(f"{t('participant_welcome_back')}, **{account['name']}**!")
-        st.rerun()
+    if st.session_state.get("pending_email"):
+        _show_name_form()
+    elif st.session_state.get("magic_link_sent"):
+        _show_magic_link_sent()
     else:
-        st.info(t("participant_no_account"))
-        name_input = st.text_input(t("participant_your_name"), placeholder="e.g. Johan (max 50 chars)", key="name_input")
-
-        if name_input.strip() and len(name_input.strip()) > 50:
-            st.error(t("participant_error_username_length"))
-
-        with st.form(key="create_account_form"):
-            if st.form_submit_button(t("participant_create_account"), width="stretch"):
-                account = create_account(DB_PATH, email_input.strip(), name_input.strip())
-                st.session_state.account = account
-                st.rerun()
-
-    st.stop()
+        _show_email_step()
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
