@@ -202,7 +202,7 @@ def show_login_form():
     st.subheader(t("participant_login_register"))
 
     if st.session_state.pop("email_confirmed", False):
-        st.success("✅ Je e-mailadres is bevestigd! Je kunt nu hieronder inloggen met een inlogcode.")
+        st.success("✅ Je e-mailadres is bevestigd! Je kunt nu hieronder inloggen met een inlogcode. Je kunt nu het andere tabblad sluiten.")
 
     if st.session_state.get("pending_email"):
         _show_name_form()
