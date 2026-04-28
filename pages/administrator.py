@@ -110,7 +110,8 @@ def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
     try:
         scraper = cloudscraper.create_scraper()
         response = scraper.get(pcs_url, timeout=15)
-        pcs_stage = PCSStage(pcs_url, html=response.text, update_html=False)
+        pcs_relative = pcs_url.replace("https://www.procyclingstats.com/", "").lstrip("/")
+        pcs_stage = PCSStage(pcs_relative, html=response.text, update_html=False)
         riders = pcs_stage.results()
         return [r for r in riders if r.get("rank") and r["rank"] <= 15][:15]
     except Exception as e:
