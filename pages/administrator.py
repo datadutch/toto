@@ -99,7 +99,38 @@ _POSITIONS_NL = ["1e", "2e", "3e", "4e", "5e", "6e", "7e", "8e", "9e", "10e",
 _NONE = "— niet geselecteerd —"
 
 
-def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
+def _parse_pcs_results(html: str) -> list[str]:
+    """Parse top 15 rider_urls (ordered 1→15) from a PCS results page."""
+    from selectolax.parser import HTMLParser
+    tree = HTMLParser(html)
+    table = tree.css_first("table.results")
+    if not table:
+        return []
+    results: list[tuple[int, str]] = []
+    for row in table.css("tr"):
+        rank_td = row.css_first("td")
+        if not rank_td:
+            continue
+        try:
+            rank = int(rank_td.text(strip=True))
+        except ValueError:
+            continue
+        if rank > 15:
+            break
+        ridername_td = row.css_first("td.ridername")
+        if not ridername_td:
+            continue
+        link = ridername_td.css_first("a")
+        if not link:
+            continue
+        rider_url = link.attributes.get("href", "").strip()
+        if rider_url:
+            results.append((rank, rider_url))
+    results.sort(key=lambda x: x[0])
+    return [url for _, url in results]
+
+
+def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[str]:
     """Fetch top 15 riders from ProCyclingStats for the given race/stage."""
     stages = load_stages(DB_PATH, race_name)
     stage = next((s for s in stages if s["Stage"] == stage_name), None)
@@ -110,9 +141,8 @@ def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
     try:
         scraper = cloudscraper.create_scraper()
         response = scraper.get(pcs_url, timeout=15)
-        pcs_stage = PCSStage(pcs_url, html=response.text, update_html=False)
-        riders = pcs_stage.results()
-        return [r for r in riders if r.get("rank") and r["rank"] <= 15][:15]
+        response.raise_for_status()
+        return _parse_pcs_results(response.text)
     except Exception as e:
         st.error(f"Ophalen van ProCyclingStats mislukt: {e}")
         return []
