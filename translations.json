@@ -211,7 +211,8 @@
     "participant_auth_error": "❌ De code is verlopen of ongeldig. Vraag hieronder een nieuwe aan.",
     "participant_send_otp": "📨 Stuur inlogcode",
     "participant_email_confirmed": "✅ Je e-mailadres is bevestigd! Je kunt nu hieronder inloggen met een inlogcode. Je kunt nu het andere tabblad sluiten.",
-    "no_results_this_race": "Nog geen uitslagen ingevoerd voor deze race."
+    "no_results_this_race": "Nog geen uitslagen ingevoerd voor deze race.",
+    "add_pcs_url": "URL toevoegen"
   },
   "en": {
     "title": "Stampers Toto Administration",
@@ -424,6 +425,7 @@
     "participant_auth_error": "❌ The code has expired or is invalid. Request a new one below.",
     "participant_send_otp": "📨 Send login code",
     "participant_email_confirmed": "✅ Your email address has been confirmed! You can now log in below with a login code. You can close the other tab.",
-    "no_results_this_race": "No results entered yet for this race."
+    "no_results_this_race": "No results entered yet for this race.",
+    "add_pcs_url": "Add URL"
   }
 }

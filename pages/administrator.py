@@ -15,6 +15,7 @@ from src.db import (
     init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email, 
     set_admin_status,
     save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
+    update_stage_pcs_url,
 )
 from src.scraper import get_race_startlist
 
@@ -98,17 +99,49 @@ _POSITIONS_NL = ["1e", "2e", "3e", "4e", "5e", "6e", "7e", "8e", "9e", "10e",
 _NONE = "— niet geselecteerd —"
 
 
-def _fetch_top_15_from_pcs(pcs_url: str) -> list[dict]:
-    """Fetch top 15 riders from a given ProCyclingStats result URL."""
+def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
+    """Fetch top 15 riders from ProCyclingStats for the given race/stage."""
+    stages = load_stages(DB_PATH, race_name)
+    stage = next((s for s in stages if s["Stage"] == stage_name), None)
+    pcs_url = stage.get("pcs_url") if stage else None
+    if not pcs_url:
+        st.error(f"Geen ProCyclingStats URL gevonden voor {stage_name}. Stel de URL in via het etappe-overzicht.")
+        return []
     try:
         scraper = cloudscraper.create_scraper()
         response = scraper.get(pcs_url, timeout=15)
-        stage = PCSStage(pcs_url, html=response.text, update_html=False)
-        riders = stage.results()
+        pcs_stage = PCSStage(pcs_url, html=response.text, update_html=False)
+        riders = pcs_stage.results()
         return [r for r in riders if r.get("rank") and r["rank"] <= 15][:15]
     except Exception as e:
         st.error(f"Ophalen van ProCyclingStats mislukt: {e}")
         return []
+
+
+def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetch_key: str) -> bool:
+    """Show fetch button if PCS URL exists, otherwise show URL input. Returns True if results were fetched."""
+    stage = next((s for s in stages if s["Stage"] == stage_name), None)
+    pcs_url = stage.get("pcs_url") if stage else None
+
+    if pcs_url:
+        if st.button(f"🌐 {t('fetch_pcs')}", key=fetch_key):
+            with st.spinner(t("fetching")):
+                riders = _fetch_top_15_from_pcs(race_name, stage_name)
+                if riders:
+                    save_stage_results(DB_PATH, race_name, stage_name, riders)
+                    st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {stage_name}")
+                    st.rerun()
+                else:
+                    st.warning(t("no_results_fetched"))
+    else:
+        with st.popover(f"🔗 {t('add_pcs_url')}", use_container_width=True):
+            new_url = st.text_input("ProCyclingStats URL", placeholder="https://www.procyclingstats.com/race/...", key=f"{fetch_key}_url_input")
+            if st.button(t("save"), key=f"{fetch_key}_url_save", type="primary"):
+                if new_url.strip():
+                    update_stage_pcs_url(DB_PATH, race_name, stage_name, new_url.strip())
+                    st.success("URL opgeslagen.")
+                    st.rerun()
+    return False
 
 
 
@@ -401,16 +434,7 @@ with tab_giro:
             with col_sel:
                 giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
             with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="giro_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("Giro d'Italia", giro_selected)
-                        if riders:
-                            # Save directly to database
-                            save_stage_results(DB_PATH, "Giro d'Italia", giro_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {giro_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
+                _render_pcs_fetch_button("Giro d'Italia", giro_selected, stages, "giro_fetch_pcs")
             
             _render_results_entry("Giro d'Italia", giro_selected, "giro")
 
@@ -532,15 +556,7 @@ with tab_tdf:
             with col_sel:
                 tdf_selected = st.selectbox("Etappe", racing_stage_names, key="tdf_result_stage")
             with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="tdf_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("Tour de France", tdf_selected)
-                        if riders:
-                            save_stage_results(DB_PATH, "Tour de France", tdf_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {tdf_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
+                _render_pcs_fetch_button("Tour de France", tdf_selected, stages, "tdf_fetch_pcs")
             
             _render_results_entry("Tour de France", tdf_selected, "tdf")
 
@@ -659,15 +675,7 @@ with tab_romandie:
             with col_sel:
                 romandie_selected = st.selectbox("Etappe", racing_stage_names, key="romandie_result_stage")
             with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="romandie_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("Tour de Romandie", romandie_selected)
-                        if riders:
-                            save_stage_results(DB_PATH, "Tour de Romandie", romandie_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {romandie_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
+                _render_pcs_fetch_button("Tour de Romandie", romandie_selected, stages, "romandie_fetch_pcs")
             
             _render_results_entry("Tour de Romandie", romandie_selected, "romandie")
 
@@ -786,15 +794,7 @@ with tab_vuelta:
             with col_sel:
                 vuelta_selected = st.selectbox("Etappe", racing_stage_names, key="vuelta_result_stage")
             with col_fetch:
-                if st.button(f"🌐 {t('fetch_pcs')}", key="vuelta_fetch_pcs"):
-                    with st.spinner(t("fetching")):
-                        riders = _fetch_top_15_from_pcs("Vuelta a España", vuelta_selected)
-                        if riders:
-                            save_stage_results(DB_PATH, "Vuelta a España", vuelta_selected, riders)
-                            st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {vuelta_selected}")
-                            st.rerun()
-                        else:
-                            st.warning(t("no_results_fetched"))
+                _render_pcs_fetch_button("Vuelta a España", vuelta_selected, stages, "vuelta_fetch_pcs")
             
             _render_results_entry("Vuelta a España", vuelta_selected, "vuelta")
 
