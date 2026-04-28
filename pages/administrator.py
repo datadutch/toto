@@ -98,13 +98,19 @@ _POSITIONS_NL = ["1e", "2e", "3e", "4e", "5e", "6e", "7e", "8e", "9e", "10e",
 _NONE = "— niet geselecteerd —"
 
 
-def _fetch_top_15_from_pcs(pcs_url: str) -> list[dict]:
-    """Fetch top 15 riders from a given ProCyclingStats result URL."""
+def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[dict]:
+    """Fetch top 15 riders from ProCyclingStats for the given race/stage."""
+    stages = load_stages(DB_PATH, race_name)
+    stage = next((s for s in stages if s["Stage"] == stage_name), None)
+    pcs_url = stage.get("pcs_url") if stage else None
+    if not pcs_url:
+        st.error(f"Geen ProCyclingStats URL gevonden voor {stage_name}. Stel de URL in via het etappe-overzicht.")
+        return []
     try:
         scraper = cloudscraper.create_scraper()
         response = scraper.get(pcs_url, timeout=15)
-        stage = PCSStage(pcs_url, html=response.text, update_html=False)
-        riders = stage.results()
+        pcs_stage = PCSStage(pcs_url, html=response.text, update_html=False)
+        riders = pcs_stage.results()
         return [r for r in riders if r.get("rank") and r["rank"] <= 15][:15]
     except Exception as e:
         st.error(f"Ophalen van ProCyclingStats mislukt: {e}")
