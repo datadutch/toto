@@ -144,6 +144,50 @@ def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetc
     return False
 
 
+def _render_stages_table(race_name: str, stages: list, finished: set, key_prefix: str):
+    """Render stages table with editable pcs_url column."""
+    stages_df = pd.DataFrame(stages)
+    stages_df["✅"] = stages_df["Stage"].apply(
+        lambda s: "✅" if s in finished else ("—" if s == "Rest Day" else "")
+    )
+    display_df = stages_df[["Date", "Day", "Stage", "Route", "KM", "✅", "pcs_url"]].copy()
+
+    edited_df = st.data_editor(
+        display_df,
+        column_config={
+            "Date":    st.column_config.TextColumn(t("date"), disabled=True, width="small"),
+            "Day":     st.column_config.TextColumn("Dag", disabled=True, width="small"),
+            "Stage":   st.column_config.TextColumn("Etappe", disabled=True),
+            "Route":   st.column_config.TextColumn("Route", disabled=True),
+            "KM":      st.column_config.NumberColumn("KM", disabled=True, format="%.1f", width="small"),
+            "✅":      st.column_config.TextColumn("", disabled=True, width="small"),
+            "pcs_url": st.column_config.TextColumn("PCS URL", help="Klik om de ProCyclingStats URL te bewerken"),
+        },
+        disabled=["Date", "Day", "Stage", "Route", "KM", "✅"],
+        hide_index=True,
+        use_container_width=True,
+        key=f"{key_prefix}_stages_editor",
+    )
+
+    changed = False
+    for i in range(len(display_df)):
+        orig = display_df.iloc[i]["pcs_url"]
+        new  = edited_df.iloc[i]["pcs_url"]
+        orig_s = "" if (orig is None or (isinstance(orig, float) and pd.isna(orig))) else str(orig).strip()
+        new_s  = "" if (new  is None or (isinstance(new,  float) and pd.isna(new)))  else str(new).strip()
+        if orig_s != new_s:
+            update_stage_pcs_url(DB_PATH, race_name, display_df.iloc[i]["Stage"], new_s)
+            changed = True
+    if changed:
+        st.rerun()
+
+    racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
+    total_km = sum(s["KM"] for s in racing_stages if s["KM"])
+    col1, col2, col3 = st.columns(3)
+    col1.metric(t("racing_stages"), len(racing_stages))
+    col2.metric(t("total_distance"), f"{total_km:.1f} km")
+    col3.metric(t("rest_days"), sum(1 for s in stages if s["Stage"] == "Rest Day"))
+
 
 def _render_results_entry(race_name: str, stage_name: str, key_prefix: str):
     """Render 15 positional selectboxes for entering stage results."""
@@ -396,29 +440,7 @@ with tab_giro:
     finished = stages_with_results(DB_PATH, "Giro d'Italia")
 
     if stages:
-        stages_df = pd.DataFrame(stages)
-        stages_df["Results"] = stages_df["Stage"].apply(
-            lambda s: "✅" if s in finished else ("—" if s == "Rest Day" else "")
-        )
-
-        def highlight_rest(row):
-            if row["Stage"] == "Rest Day":
-                return ["background-color: #f0f0f0; color: #888"] * len(row)
-            return [""] * len(row)
-
-        styled = (
-            stages_df.style
-            .apply(highlight_rest, axis=1)
-            .format({"KM": lambda v: f"{v:.1f}" if pd.notna(v) and v else "—"})
-        )
-        st.dataframe(styled, hide_index=True, width="stretch")
-
-        racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
-        total_km = sum(s["KM"] for s in racing_stages if s["KM"])
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Racing stages", len(racing_stages))
-        col2.metric("Total distance", f"{total_km:.1f} km")
-        col3.metric("Rest days", sum(1 for s in stages if s["Stage"] == "Rest Day"))
+        _render_stages_table("Giro d'Italia", stages, finished, "giro")
 
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
@@ -518,29 +540,7 @@ with tab_tdf:
     finished = stages_with_results(DB_PATH, "Tour de France")
 
     if stages:
-        stages_df = pd.DataFrame(stages)
-        stages_df["Results"] = stages_df["Stage"].apply(
-            lambda s: "✅" if s in finished else ("—" if s == "Rest Day" else "")
-        )
-
-        def highlight_rest(row):
-            if row["Stage"] == "Rest Day":
-                return ["background-color: #f0f0f0; color: #888"] * len(row)
-            return [""] * len(row)
-
-        styled = (
-            stages_df.style
-            .apply(highlight_rest, axis=1)
-            .format({"KM": lambda v: f"{v:.1f}" if pd.notna(v) and v else "—"})
-        )
-        st.dataframe(styled, hide_index=True, width="stretch")
-
-        racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
-        total_km = sum(s["KM"] for s in racing_stages if s["KM"])
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Racing stages", len(racing_stages))
-        col2.metric("Total distance", f"{total_km:.1f} km")
-        col3.metric("Rest days", sum(1 for s in stages if s["Stage"] == "Rest Day"))
+        _render_stages_table("Tour de France", stages, finished, "tdf")
 
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
@@ -637,29 +637,7 @@ with tab_romandie:
     finished = stages_with_results(DB_PATH, "Tour de Romandie")
 
     if stages:
-        stages_df = pd.DataFrame(stages)
-        stages_df["Results"] = stages_df["Stage"].apply(
-            lambda s: "✅" if s in finished else ("—" if s == "Rest Day" else "")
-        )
-
-        def highlight_rest(row):
-            if row["Stage"] == "Rest Day":
-                return ["background-color: #f0f0f0; color: #888"] * len(row)
-            return [""] * len(row)
-
-        styled = (
-            stages_df.style
-            .apply(highlight_rest, axis=1)
-            .format({"KM": lambda v: f"{v:.1f}" if pd.notna(v) and v else "—"})
-        )
-        st.dataframe(styled, hide_index=True, width="stretch")
-
-        racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
-        total_km = sum(s["KM"] for s in racing_stages if s["KM"])
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Racing stages", len(racing_stages))
-        col2.metric("Total distance", f"{total_km:.1f} km")
-        col3.metric("Rest days", sum(1 for s in stages if s["Stage"] == "Rest Day"))
+        _render_stages_table("Tour de Romandie", stages, finished, "romandie")
 
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
@@ -756,29 +734,7 @@ with tab_vuelta:
     finished = stages_with_results(DB_PATH, "Vuelta a España")
 
     if stages:
-        stages_df = pd.DataFrame(stages)
-        stages_df["Results"] = stages_df["Stage"].apply(
-            lambda s: "✅" if s in finished else ("—" if s == "Rest Day" else "")
-        )
-
-        def highlight_rest(row):
-            if row["Stage"] == "Rest Day":
-                return ["background-color: #f0f0f0; color: #888"] * len(row)
-            return [""] * len(row)
-
-        styled = (
-            stages_df.style
-            .apply(highlight_rest, axis=1)
-            .format({"KM": lambda v: f"{v:.1f}" if pd.notna(v) and v else "—"})
-        )
-        st.dataframe(styled, hide_index=True, width="stretch")
-
-        racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
-        total_km = sum(s["KM"] for s in racing_stages if s["KM"])
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Racing stages", len(racing_stages))
-        col2.metric("Total distance", f"{total_km:.1f} km")
-        col3.metric("Rest days", sum(1 for s in stages if s["Stage"] == "Rest Day"))
+        _render_stages_table("Vuelta a España", stages, finished, "vuelta")
 
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
