@@ -55,6 +55,7 @@ def _get_supabase():
 _qp = st.query_params
 if _qp.get("verified") == "1" and not st.session_state.get("email_confirmed"):
     st.session_state["email_confirmed"] = True
+    st.session_state["newly_verified"] = True
     st.query_params.clear()
     st.rerun()
 
@@ -177,6 +178,7 @@ def _show_email_step():
         try:
             sb = _get_supabase()
             is_known_user = get_account_by_email(DB_PATH, email_input.strip()) is not None
+            newly_verified = st.session_state.pop("newly_verified", False)
             sb.auth.sign_in_with_otp({
                 "email": email_input.strip(),
                 "options": {
@@ -184,7 +186,7 @@ def _show_email_step():
                     "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
                 },
             })
-            if is_known_user:
+            if is_known_user or newly_verified:
                 st.session_state.otp_email = email_input.strip()
             else:
                 st.session_state.confirm_email = email_input.strip()
