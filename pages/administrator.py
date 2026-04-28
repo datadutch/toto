@@ -148,8 +148,9 @@ def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[str]:
         return []
 
 
-def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetch_key: str) -> bool:
-    """Show fetch button if PCS URL exists, otherwise show URL input. Returns True if results were fetched."""
+def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetch_key: str):
+    """Show fetch button if PCS URL exists, otherwise show URL input."""
+    prefix = fetch_key.replace("_fetch_pcs", "")
     stage = next((s for s in stages if s["Stage"] == stage_name), None)
     pcs_url = stage.get("pcs_url") if stage else None
 
@@ -159,6 +160,10 @@ def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetc
                 riders = _fetch_top_15_from_pcs(race_name, stage_name)
                 if riders:
                     save_stage_results(DB_PATH, race_name, stage_name, riders)
+                    st.session_state.pop(f"results_{prefix}_{stage_name}", None)
+                    for _i in range(15):
+                        st.session_state.pop(f"{prefix}_pos_{_i}_{stage_name}", None)
+                    st.session_state[f"{prefix}_subtab"] = "view"
                     st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {stage_name}")
                     st.rerun()
                 else:
@@ -171,7 +176,50 @@ def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetc
                     update_stage_pcs_url(DB_PATH, race_name, stage_name, new_url.strip())
                     st.success("URL opgeslagen.")
                     st.rerun()
-    return False
+
+
+def _render_results_section(race_name: str, stages: list, prefix: str):
+    """Render the enter/view results section with a switchable subtab."""
+    racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
+    if not racing_stage_names:
+        return
+
+    subtab_key = f"{prefix}_subtab"
+    if subtab_key not in st.session_state:
+        st.session_state[subtab_key] = "enter"
+
+    col_tab1, col_tab2 = st.columns(2)
+    if col_tab1.button(
+        f"📝 {t('enter_results')}",
+        use_container_width=True,
+        key=f"{prefix}_tab_enter",
+        type="primary" if st.session_state[subtab_key] == "enter" else "secondary",
+    ):
+        st.session_state[subtab_key] = "enter"
+        st.rerun()
+    if col_tab2.button(
+        f"📊 {t('view_results')}",
+        use_container_width=True,
+        key=f"{prefix}_tab_view",
+        type="primary" if st.session_state[subtab_key] == "view" else "secondary",
+    ):
+        st.session_state[subtab_key] = "view"
+        st.rerun()
+
+    if st.session_state[subtab_key] == "enter":
+        col_sel, col_fetch = st.columns([3, 1])
+        with col_sel:
+            selected = st.selectbox("Etappe", racing_stage_names, key=f"{prefix}_result_stage")
+        with col_fetch:
+            _render_pcs_fetch_button(race_name, selected, stages, f"{prefix}_fetch_pcs")
+        _render_results_entry(race_name, selected, prefix)
+    else:
+        view_stage = st.selectbox("Etappe", racing_stage_names, key=f"{prefix}_view_stage")
+        results = load_stage_results(DB_PATH, race_name, view_stage)
+        if results:
+            st.dataframe(pd.DataFrame(results), hide_index=True, use_container_width=True)
+        else:
+            st.info(t("no_stage_results"))
 
 
 def _render_stages_table(race_name: str, stages: list, finished: set, key_prefix: str):
@@ -475,29 +523,7 @@ with tab_giro:
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
     st.subheader(t("stage_results"))
-
-    racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
-
-    sub_giro_enter, sub_giro_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
-
-    with sub_giro_enter:
-        if racing_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                giro_selected = st.selectbox("Etappe", racing_stage_names, key="giro_result_stage")
-            with col_fetch:
-                _render_pcs_fetch_button("Giro d'Italia", giro_selected, stages, "giro_fetch_pcs")
-            
-            _render_results_entry("Giro d'Italia", giro_selected, "giro")
-
-    with sub_giro_view:
-        if racing_stage_names:
-            giro_view_stage = st.selectbox("Etappe", racing_stage_names, key="giro_view_stage")
-            giro_results = load_stage_results(DB_PATH, "Giro d'Italia", giro_view_stage)
-            if giro_results:
-                st.dataframe(pd.DataFrame(giro_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
+    _render_results_section("Giro d'Italia", stages, "giro")
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
@@ -575,29 +601,7 @@ with tab_tdf:
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
     st.subheader(t("stage_results"))
-
-    racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
-
-    sub_tdf_enter, sub_tdf_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
-
-    with sub_tdf_enter:
-        if racing_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                tdf_selected = st.selectbox("Etappe", racing_stage_names, key="tdf_result_stage")
-            with col_fetch:
-                _render_pcs_fetch_button("Tour de France", tdf_selected, stages, "tdf_fetch_pcs")
-            
-            _render_results_entry("Tour de France", tdf_selected, "tdf")
-
-    with sub_tdf_view:
-        if racing_stage_names:
-            tdf_view_stage = st.selectbox("Etappe", racing_stage_names, key="tdf_view_stage")
-            tdf_results = load_stage_results(DB_PATH, "Tour de France", tdf_view_stage)
-            if tdf_results:
-                st.dataframe(pd.DataFrame(tdf_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
+    _render_results_section("Tour de France", stages, "tdf")
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
@@ -672,29 +676,7 @@ with tab_romandie:
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
     st.subheader(t("stage_results"))
-
-    racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
-
-    sub_romandie_enter, sub_romandie_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
-
-    with sub_romandie_enter:
-        if racing_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                romandie_selected = st.selectbox("Etappe", racing_stage_names, key="romandie_result_stage")
-            with col_fetch:
-                _render_pcs_fetch_button("Tour de Romandie", romandie_selected, stages, "romandie_fetch_pcs")
-            
-            _render_results_entry("Tour de Romandie", romandie_selected, "romandie")
-
-    with sub_romandie_view:
-        if racing_stage_names:
-            romandie_view_stage = st.selectbox("Etappe", racing_stage_names, key="romandie_view_stage")
-            romandie_results = load_stage_results(DB_PATH, "Tour de Romandie", romandie_view_stage)
-            if romandie_results:
-                st.dataframe(pd.DataFrame(romandie_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
+    _render_results_section("Tour de Romandie", stages, "romandie")
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
@@ -769,29 +751,7 @@ with tab_vuelta:
     # ── Enter / view stage results ─────────────────────────────────────────────
     st.divider()
     st.subheader(t("stage_results"))
-
-    racing_stage_names = [s["Stage"] for s in stages if s["Stage"] != "Rest Day"]
-
-    sub_vuelta_enter, sub_vuelta_view = st.tabs([f"📝 {t('enter_results')}", f"📊 {t('view_results')}"])
-
-    with sub_vuelta_enter:
-        if racing_stage_names:
-            col_sel, col_fetch = st.columns([3, 1])
-            with col_sel:
-                vuelta_selected = st.selectbox("Etappe", racing_stage_names, key="vuelta_result_stage")
-            with col_fetch:
-                _render_pcs_fetch_button("Vuelta a España", vuelta_selected, stages, "vuelta_fetch_pcs")
-            
-            _render_results_entry("Vuelta a España", vuelta_selected, "vuelta")
-
-    with sub_vuelta_view:
-        if racing_stage_names:
-            vuelta_view_stage = st.selectbox("Etappe", racing_stage_names, key="vuelta_view_stage")
-            vuelta_results = load_stage_results(DB_PATH, "Vuelta a España", vuelta_view_stage)
-            if vuelta_results:
-                st.dataframe(pd.DataFrame(vuelta_results), hide_index=True, width="stretch")
-            else:
-                st.info(t("no_stage_results"))
+    _render_results_section("Vuelta a España", stages, "vuelta")
 
     # ── Registration deadline ──────────────────────────────────────────────────
     st.divider()
