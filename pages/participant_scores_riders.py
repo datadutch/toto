@@ -38,7 +38,7 @@ if not completed:
 my_team = load_team_by_account(DB_PATH, account["id"], selected_race)
 
 render_scores_nav("riders")
-st.subheader(f"🚴 {t('scores_nav_riders')} — {selected_race}")
+st.subheader(f"{t('scores_nav_riders')} — {selected_race}")
 st.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
 
 if not my_team:
@@ -59,5 +59,5 @@ df_totals = (
     .rename(columns={"Rider": t("col_rider"), "Points": t("col_total_points")})
 )
 df_totals.index = df_totals.index + 1
-st.dataframe(df_totals, use_container_width=True)
+st.dataframe(df_totals, height=len(df_totals) * 35 + 41, use_container_width=True)
 st.metric(t("total_points_your_team"), int(df_bd["Points"].sum()))
