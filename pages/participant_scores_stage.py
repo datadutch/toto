@@ -39,10 +39,12 @@ my_team = load_team_by_account(DB_PATH, account["id"], selected_race)
 my_rider_urls = set(my_team["rider_urls"]) if my_team else set()
 
 render_scores_nav("stage")
-st.subheader(f"🏁 {t('scores_nav_stage')} — {selected_race}")
-st.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
+st.subheader(f"{t('scores_nav_stage')} — {selected_race}")
 
-selected_stage = st.selectbox(t("select_stage"), completed, key="scores_stage_select")
+col_select, col_caption, col_metric = st.columns([3, 2, 2])
+selected_stage = col_select.selectbox(t("select_stage"), completed, key="scores_stage_select", label_visibility="collapsed")
+col_caption.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
+metric_slot = col_metric.empty()
 
 conn = _connect(DB_PATH, read_only=True)
 try:
@@ -69,12 +71,13 @@ if stage_rows:
             t("col_team"): team or "?",
             t("col_points"): pts,
         })
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    df = pd.DataFrame(rows)
+    st.dataframe(df, hide_index=True, height=len(df) * 35 + 41, use_container_width=True)
 
     if my_team:
         col_rider_key = t("col_rider")
         col_points_key = t("col_points")
         my_pts = sum(r[col_points_key] for r in rows if r[col_rider_key].startswith("✅"))
-        st.metric(t("your_points_this_stage"), my_pts)
+        metric_slot.metric(t("your_points_this_stage"), my_pts)
 else:
     st.info(t("no_stage_results"))

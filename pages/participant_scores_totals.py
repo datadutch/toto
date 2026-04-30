@@ -33,7 +33,7 @@ if not completed:
     st.info(t("no_results_this_race"))
     st.stop()
 
-st.subheader(f"🏆 {t('scores_nav_totals')} — {selected_race}")
+st.subheader(f"{t('scores_nav_totals')} — {selected_race}")
 st.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
 
 try:
@@ -41,7 +41,7 @@ try:
     if scores:
         df = pd.DataFrame(scores).sort_values("Total", ascending=False).reset_index(drop=True)
         df.index = df.index + 1
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, height=len(df) * 35 + 41, use_container_width=True)
     else:
         st.info(t("no_scores_available"))
 except Exception as e:
