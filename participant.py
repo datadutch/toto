@@ -262,9 +262,11 @@ if st.session_state.account is None:
 else:
     pg = st.navigation(
         [
-            st.Page("pages/participant_register.py", title="Inschrijven", icon="📝"),
-            st.Page("pages/participant_scores.py", title="Scores", icon="🏆"),
-            st.Page("pages/administrator.py", title="Administrator", icon="👑"),
+            st.Page("pages/participant_register.py",       title="Inschrijven",     icon="📝"),
+            st.Page("pages/participant_scores_totals.py",  title="Team scores",     icon="🏆"),
+            st.Page("pages/participant_scores_stage.py",   title="Stage resultaat", icon="🏁"),
+            st.Page("pages/participant_scores_riders.py",  title="Renners totaal",  icon="🚴"),
+            st.Page("pages/administrator.py",              title="Administrator",   icon="👑"),
         ],
         position="hidden",
     )
