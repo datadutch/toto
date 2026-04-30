@@ -71,7 +71,7 @@ if stage_rows:
         pts = STAGE_POINTS.get(pos, 0)
         in_team = rider_url in my_rider_urls
         rows.append({
-            col_pos: pos,
+            col_pos: str(pos),
             col_sel: "✔" if in_team else "",
             col_rider: name or "?",
             col_team: team or "?",
@@ -81,7 +81,7 @@ if stage_rows:
     df = pd.DataFrame(rows)
 
     styled = df.style.apply(
-        lambda row: ["background-color: #d4edd4"] * len(row) if row[col_sel] == "✔" else [""] * len(row),
+        lambda row: ["background-color: #d4edd4; color: black"] * len(row) if row[col_sel] == "✔" else [""] * len(row),
         axis=1,
     )
 
@@ -91,8 +91,8 @@ if stage_rows:
         height=len(df) * 35 + 41,
         use_container_width=True,
         column_config={
-            col_pos: st.column_config.NumberColumn(width="small"),
-            col_sel: st.column_config.TextColumn(width="small"),
+            col_pos: st.column_config.TextColumn(label=col_pos, width="small"),
+            col_sel: st.column_config.TextColumn(label=col_sel, width="small"),
         },
     )
 
