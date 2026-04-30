@@ -17,7 +17,7 @@ if _TOKEN:
 else:
     DB_PATH = os.path.join(_ROOT, "data", "cycling.duckdb")
 
-with open(os.path.join(_ROOT, "translations.json"), "r", encoding="utf-8") as f:
+with open(os.path.join(_ROOT, "translation", "translations.json"), "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
 

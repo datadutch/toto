@@ -25,7 +25,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
 # ── Load Translations from JSON ──────────────────────────────────────────────
-with open("translations.json", "r", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "translation", "translations.json"), "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
 def t(key: str) -> str:

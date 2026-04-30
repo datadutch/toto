@@ -22,7 +22,7 @@ from src.scraper import get_race_startlist
 load_dotenv()
 
 # ── Load Translations from JSON ──────────────────────────────────────────────
-with open("translations.json", "r", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "translation", "translations.json"), "r", encoding="utf-8") as f:
     TRANSLATIONS = json.load(f)
 
 try:
