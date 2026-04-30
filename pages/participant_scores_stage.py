@@ -6,15 +6,15 @@ from src.db import (
 )
 from src.participant_common import (
     DB_PATH, t,
-    setup_page, render_header, render_sidebar, render_name_change_modal,
-    load_race_selector,
+    setup_page, render_header, render_sidebar, render_scores_nav,
+    render_name_change_modal, load_race_selector,
 )
 
 account = setup_page()
 init_fantasy_tables(DB_PATH)
 
 render_header(account)
-render_sidebar(account, "scores", "stage")
+render_sidebar(account, "scores")
 
 st.divider()
 render_name_change_modal(account)
@@ -38,6 +38,7 @@ if not completed:
 my_team = load_team_by_account(DB_PATH, account["id"], selected_race)
 my_rider_urls = set(my_team["rider_urls"]) if my_team else set()
 
+render_scores_nav("stage")
 st.subheader(f"🏁 Stage resultaat — {selected_race}")
 st.caption(f"{len(completed)} / {len(racing_stages)} etappes voltooid")
 

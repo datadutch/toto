@@ -3,21 +3,22 @@ import pandas as pd
 from src.db import init_fantasy_tables, load_stages, load_stage_results, calculate_scores
 from src.participant_common import (
     DB_PATH, t,
-    setup_page, render_header, render_sidebar, render_name_change_modal,
-    load_race_selector,
+    setup_page, render_header, render_sidebar, render_scores_nav,
+    render_name_change_modal, load_race_selector,
 )
 
 account = setup_page()
 init_fantasy_tables(DB_PATH)
 
 render_header(account)
-render_sidebar(account, "scores", "totals")
+render_sidebar(account, "scores")
 
 st.divider()
 render_name_change_modal(account)
 
 _, selected_race, _, _ = load_race_selector()
 
+render_scores_nav("totals")
 st.divider()
 
 stages = load_stages(DB_PATH, selected_race)
