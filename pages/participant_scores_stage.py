@@ -60,22 +60,44 @@ finally:
     conn.close()
 
 if stage_rows:
+    col_pos = t("col_pos")
+    col_sel = t("col_selected")
+    col_rider = t("col_rider")
+    col_team = t("col_team")
+    col_points = t("col_points")
+
     rows = []
     for pos, rider_url, name, nat, team in stage_rows:
         pts = STAGE_POINTS.get(pos, 0)
         in_team = rider_url in my_rider_urls
         rows.append({
-            t("col_pos"): pos,
-            t("col_selected"): "✅" if in_team else "",
-            t("col_rider"): name or "?",
-            t("col_team"): team or "?",
-            t("col_points"): pts,
+            col_pos: pos,
+            col_sel: "✔" if in_team else "",
+            col_rider: name or "?",
+            col_team: team or "?",
+            col_points: pts,
         })
+
     df = pd.DataFrame(rows)
-    st.dataframe(df, hide_index=True, height=len(df) * 35 + 41, use_container_width=True)
+
+    styled = df.style.apply(
+        lambda row: ["background-color: #d4edd4"] * len(row) if row[col_sel] == "✔" else [""] * len(row),
+        axis=1,
+    )
+
+    st.dataframe(
+        styled,
+        hide_index=True,
+        height=len(df) * 35 + 41,
+        use_container_width=True,
+        column_config={
+            col_pos: st.column_config.NumberColumn(width="small"),
+            col_sel: st.column_config.TextColumn(width="small"),
+        },
+    )
 
     if my_team:
-        my_pts = sum(r[t("col_points")] for r in rows if r[t("col_selected")] == "✅")
+        my_pts = sum(r[col_points] for r in rows if r[col_sel] == "✔")
         metric_slot.metric(t("your_points_this_stage"), my_pts)
 else:
     st.info(t("no_stage_results"))
