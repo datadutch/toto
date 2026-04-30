@@ -417,7 +417,7 @@ if st.session_state.get("account") is None:
 _admin = st.session_state.account
 if _admin.get("is_admin") != "yes":
     st.error(t("no_access"))
-    st.switch_page("pages/participant_main.py")
+    st.switch_page("pages/participant_register.py")
 
 # ── Language Selector (Sidebar - Always Visible) ──────────────────────────────
 st.sidebar.markdown("---")
@@ -435,7 +435,7 @@ _col_title.title(f"🚴 {t('title')}")
 
 with _col_middle:
     if st.button(f"👥 {t('participant_app')}", help="Naar deelnemer app", use_container_width=True):
-        st.switch_page("pages/participant_main.py")
+        st.switch_page("pages/participant_register.py")
 
 if _col_logout.button(t("logout"), key="admin_logout"):
     st.session_state.account = None
