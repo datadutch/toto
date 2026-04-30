@@ -7,7 +7,7 @@ from src.participant_common import (
     render_name_change_modal, load_race_selector,
 )
 
-account = setup_page()
+account = setup_page(layout="wide")
 init_fantasy_tables(DB_PATH)
 
 render_header(account)
@@ -23,7 +23,7 @@ st.divider()
 
 stages = load_stages(DB_PATH, selected_race)
 if not stages:
-    st.info("No stages available for this race.")
+    st.info(t("no_stages_available"))
     st.stop()
 
 racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
@@ -33,8 +33,8 @@ if not completed:
     st.info(t("no_results_this_race"))
     st.stop()
 
-st.subheader(f"🏆 Team scores — {selected_race}")
-st.caption(f"{len(completed)} / {len(racing_stages)} etappes voltooid")
+st.subheader(f"🏆 {t('scores_nav_totals')} — {selected_race}")
+st.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
 
 try:
     scores = calculate_scores(DB_PATH, selected_race)
@@ -43,6 +43,6 @@ try:
         df.index = df.index + 1
         st.dataframe(df, use_container_width=True)
     else:
-        st.info("No scores available yet.")
+        st.info(t("no_scores_available"))
 except Exception as e:
-    st.error(f"Error loading scores: {e}")
+    st.error(f"{t('error_loading_scores')} {e}")

@@ -10,7 +10,7 @@ from src.participant_common import (
     render_name_change_modal, load_race_selector,
 )
 
-account = setup_page()
+account = setup_page(layout="wide")
 init_fantasy_tables(DB_PATH)
 
 render_header(account)
@@ -25,7 +25,7 @@ st.divider()
 
 stages = load_stages(DB_PATH, selected_race)
 if not stages:
-    st.info("No stages available for this race.")
+    st.info(t("no_stages_available"))
     st.stop()
 
 racing_stages = [s for s in stages if s["Stage"] != "Rest Day"]
@@ -38,8 +38,8 @@ if not completed:
 my_team = load_team_by_account(DB_PATH, account["id"], selected_race)
 
 render_scores_nav("riders")
-st.subheader(f"🚴 Renners totaal — {selected_race}")
-st.caption(f"{len(completed)} / {len(racing_stages)} etappes voltooid")
+st.subheader(f"🚴 {t('scores_nav_riders')} — {selected_race}")
+st.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
 
 if not my_team:
     st.info(t("participant_no_team_registered"))
@@ -47,7 +47,7 @@ if not my_team:
 
 breakdown = calculate_stage_breakdown(DB_PATH, selected_race, my_team["id"])
 if not breakdown:
-    st.info("Nog geen punten voor jouw renners.")
+    st.info(t("no_points_yet"))
     st.stop()
 
 df_bd = pd.DataFrame(breakdown)
@@ -56,8 +56,8 @@ df_totals = (
     .sum()
     .sort_values("Points", ascending=False)
     .reset_index(drop=True)
-    .rename(columns={"Rider": "Renner", "Points": "Totaal punten"})
+    .rename(columns={"Rider": t("col_rider"), "Points": t("col_total_points")})
 )
 df_totals.index = df_totals.index + 1
 st.dataframe(df_totals, use_container_width=True)
-st.metric("Totale punten jouw team", int(df_bd["Points"].sum()))
+st.metric(t("total_points_your_team"), int(df_bd["Points"].sum()))

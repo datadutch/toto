@@ -30,9 +30,9 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
 
-def setup_page() -> dict:
+def setup_page(layout: str = "centered") -> dict:
     """Set page config, init session state, auth check. Returns account dict."""
-    st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout="centered")
+    st.set_page_config(page_title="Stampers Toto", page_icon="🚴", layout=layout)
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
 
     if "language" not in st.session_state:
@@ -69,18 +69,18 @@ def render_header(account: dict) -> None:
 
 
 _SCORES_SUBPAGES = {
-    "totals": ("🏆 Team scores",     "pages/participant_scores_totals.py"),
-    "stage":  ("🏁 Stage resultaat", "pages/participant_scores_stage.py"),
-    "riders": ("🚴 Renners totaal",  "pages/participant_scores_riders.py"),
+    "totals": ("scores_nav_totals", "pages/participant_scores_totals.py"),
+    "stage":  ("scores_nav_stage",  "pages/participant_scores_stage.py"),
+    "riders": ("scores_nav_riders", "pages/participant_scores_riders.py"),
 }
 
 
 def render_scores_nav(active: str) -> None:
     """Horizontal tab-style buttons for navigating between scores sub-pages."""
     cols = st.columns(len(_SCORES_SUBPAGES))
-    for col, (key, (label, path)) in zip(cols, _SCORES_SUBPAGES.items()):
+    for col, (key, (label_key, path)) in zip(cols, _SCORES_SUBPAGES.items()):
         if col.button(
-            label,
+            t(label_key),
             use_container_width=True,
             type="primary" if key == active else "secondary",
             key=f"scores_nav_{key}",
