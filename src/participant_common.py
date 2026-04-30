@@ -69,14 +69,27 @@ def render_header(account: dict) -> None:
 
 
 _SCORES_SUBPAGES = {
-    "totals": ("🏆 Team scores",        "pages/participant_scores_totals.py"),
-    "stage":  ("🏁 Stage resultaat",    "pages/participant_scores_stage.py"),
-    "riders": ("🚴 Renners totaal",     "pages/participant_scores_riders.py"),
+    "totals": ("🏆 Team scores",     "pages/participant_scores_totals.py"),
+    "stage":  ("🏁 Stage resultaat", "pages/participant_scores_stage.py"),
+    "riders": ("🚴 Renners totaal",  "pages/participant_scores_riders.py"),
 }
 
 
-def render_sidebar(account: dict, active_page: str, scores_subpage: str = None) -> None:
-    """Sidebar: user info, page navigation, optional scores sub-nav, language selector."""
+def render_scores_nav(active: str) -> None:
+    """Horizontal tab-style buttons for navigating between scores sub-pages."""
+    cols = st.columns(len(_SCORES_SUBPAGES))
+    for col, (key, (label, path)) in zip(cols, _SCORES_SUBPAGES.items()):
+        if col.button(
+            label,
+            use_container_width=True,
+            type="primary" if key == active else "secondary",
+            key=f"scores_nav_{key}",
+        ):
+            st.switch_page(path)
+
+
+def render_sidebar(account: dict, active_page: str) -> None:
+    """Sidebar: user info, page navigation, language selector."""
     st.sidebar.markdown(f"<center><b>{t('participant_logged_in')}</b></center>", unsafe_allow_html=True)
 
     if st.sidebar.button(
@@ -101,19 +114,6 @@ def render_sidebar(account: dict, active_page: str, scores_subpage: str = None) 
     if nav != active_page:
         target = "pages/participant_register.py" if nav == "register" else _SCORES_SUBPAGES["totals"][1]
         st.switch_page(target)
-
-    if active_page == "scores" and scores_subpage:
-        st.sidebar.markdown("---")
-        subnav = st.sidebar.radio(
-            "Scores",
-            options=list(_SCORES_SUBPAGES.keys()),
-            format_func=lambda x: _SCORES_SUBPAGES[x][0],
-            index=list(_SCORES_SUBPAGES.keys()).index(scores_subpage),
-            label_visibility="collapsed",
-            key="scores_subnav",
-        )
-        if subnav != scores_subpage:
-            st.switch_page(_SCORES_SUBPAGES[subnav][1])
 
     st.sidebar.markdown("---")
     st.sidebar.selectbox(
