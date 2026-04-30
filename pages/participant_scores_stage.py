@@ -81,7 +81,7 @@ if stage_rows:
     df = pd.DataFrame(rows)
 
     styled = df.style.apply(
-        lambda row: ["background-color: #d4edd4"] * len(row) if row[col_sel] == "✔" else [""] * len(row),
+        lambda row: ["background-color: #d4edd4; color: black"] * len(row) if row[col_sel] == "✔" else [""] * len(row),
         axis=1,
     )
 

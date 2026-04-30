@@ -88,7 +88,7 @@ df_totals = (
 df_totals.index = df_totals.index + 1
 
 styled = df_totals.style.apply(
-    lambda row: ["background-color: #fde8e8"] * len(row) if row[col_total] == 0 else [""] * len(row),
+    lambda row: ["background-color: #fde8e8; color: black"] * len(row) if row[col_total] == 0 else [""] * len(row),
     axis=1,
 )
 st.dataframe(styled, height=len(df_totals) * 35 + 41, use_container_width=True)
