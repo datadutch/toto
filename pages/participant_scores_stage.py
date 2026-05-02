@@ -41,8 +41,12 @@ my_rider_urls = set(my_team["rider_urls"]) if my_team else set()
 render_scores_nav("stage")
 st.subheader(f"{t('scores_nav_stage')} — {selected_race}")
 
+stage_key = f"scores_stage_select_{selected_race}"
+if stage_key not in st.session_state:
+    st.session_state[stage_key] = completed[-1]
+
 col_select, col_caption, col_metric = st.columns([3, 2, 2])
-selected_stage = col_select.selectbox(t("select_stage"), completed, key="scores_stage_select", label_visibility="collapsed")
+selected_stage = col_select.selectbox(t("select_stage"), completed, key=stage_key, label_visibility="collapsed")
 col_caption.caption(f"{len(completed)} / {len(racing_stages)} {t('stages_completed')}")
 metric_slot = col_metric.empty()
 
