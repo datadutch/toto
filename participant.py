@@ -5,7 +5,10 @@ import unicodedata
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
+from streamlit_cookies_controller import CookieController
 from src.db import get_account_by_email, create_account
+
+SESSION_DURATION = 5 * 3600  # 5 hours in seconds
 
 def _normalize(text: str) -> str:
     """Lowercase + strip diacritics so 'pogacar' matches 'Pogačar'."""
@@ -46,10 +49,21 @@ _cloud_email = getattr(_user, "email", None) if _user else None
 _cloud_name = (getattr(_user, "name", None) or getattr(_user, "full_name", None)) if _user else None
 _is_guest = getattr(_user, "is_logged_in", None) is False or _cloud_email is None
 
+_cookie = CookieController(key="supa_cookie_ctrl")
+
+
 def _get_supabase():
     if "_supabase" not in st.session_state:
         st.session_state._supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     return st.session_state._supabase
+
+
+def _set_session_cookie(refresh_token: str) -> None:
+    _cookie.set("supa_refresh", refresh_token, max_age=SESSION_DURATION)
+
+
+def _clear_session_cookie() -> None:
+    _cookie.remove("supa_refresh")
 
 # ── Detect post-verification redirect ────────────────────────────────────────
 _qp = st.query_params
@@ -67,6 +81,29 @@ if st.session_state.account is None:
         if acct:
             st.session_state.account = acct
             st.rerun()
+
+# ── Handle logout cookie clearing ────────────────────────────────────────────
+if st.session_state.pop("_clear_auth_cookie", False):
+    _clear_session_cookie()
+    st.session_state.pop("_refresh_attempted", None)
+
+# ── Auto-login via cookie (refresh token) ────────────────────────────────────
+if st.session_state.account is None and not st.session_state.get("_refresh_attempted"):
+    _rt = _cookie.get("supa_refresh")
+    if _rt:
+        st.session_state["_refresh_attempted"] = True
+        try:
+            _sb = _get_supabase()
+            _resp = _sb.auth.refresh_session(_rt)
+            if _resp.session and _resp.user:
+                _acct = get_account_by_email(DB_PATH, _resp.user.email)
+                if _acct:
+                    st.session_state.account = _acct
+                    st.session_state.pop("_refresh_attempted", None)
+                    _set_session_cookie(_resp.session.refresh_token)
+                    st.rerun()
+        except Exception:
+            _clear_session_cookie()
 
 
 # ── Login sub-views ───────────────────────────────────────────────────────────
@@ -130,6 +167,8 @@ def _show_otp_step():
                 "type": "email",
             })
             verified_email = resp.user.email
+            if resp.session and resp.session.refresh_token:
+                _set_session_cookie(resp.session.refresh_token)
             st.session_state.pop("otp_email", None)
             acct = get_account_by_email(DB_PATH, verified_email)
             if acct:

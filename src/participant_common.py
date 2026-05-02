@@ -66,6 +66,7 @@ def render_header(account: dict) -> None:
             if st.button("🚪 Uitloggen", key="btn_logout_header"):
                 for _k in [k for k in st.session_state if k.startswith("scores_stage_select_")]:
                     del st.session_state[_k]
+                st.session_state["_clear_auth_cookie"] = True
                 st.session_state.account = None
                 st.rerun()
 
