@@ -311,16 +311,22 @@ def update_account_name(db_path: str, account_id: int, new_name: str) -> bool:
 def load_fantasy_teams(db_path: str, race_name: str = None) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
+        base = """
+            SELECT ft.id, ft.manager_name, ft.team_name, ft.race_name, ft.created_at, a.email
+            FROM fantasy_teams ft
+            LEFT JOIN accounts a ON a.id = ft.account_id
+        """
         if race_name:
             rows = conn.execute(
-                "SELECT id, manager_name, team_name, race_name, created_at FROM fantasy_teams WHERE race_name = ? OR race_name IS NULL ORDER BY created_at DESC",
+                base + "WHERE ft.race_name = ? OR ft.race_name IS NULL ORDER BY ft.created_at DESC",
                 [race_name],
             ).fetchall()
         else:
-            rows = conn.execute(
-                "SELECT id, manager_name, team_name, race_name, created_at FROM fantasy_teams ORDER BY created_at DESC"
-            ).fetchall()
-        return [{"id": r[0], "manager_name": r[1], "team_name": r[2], "race_name": r[3], "created_at": r[4]} for r in rows]
+            rows = conn.execute(base + "ORDER BY ft.created_at DESC").fetchall()
+        return [
+            {"id": r[0], "manager_name": r[1], "team_name": r[2], "race_name": r[3], "created_at": r[4], "email": r[5]}
+            for r in rows
+        ]
     finally:
         conn.close()
 

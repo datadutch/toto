@@ -912,7 +912,7 @@ with tab_settings:
     else:
         # Show summary table of all teams
         summary_df = pd.DataFrame([
-            {t("name"): team["team_name"], t("manager"): team["manager_name"], t("registered"): team["created_at"]}
+            {t("name"): team["team_name"], t("manager"): team["manager_name"], t("email_address"): team["email"] or "", t("registered"): team["created_at"]}
             for team in teams_all
         ])
         st.dataframe(summary_df, hide_index=True, width="stretch")
