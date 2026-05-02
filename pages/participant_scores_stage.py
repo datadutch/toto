@@ -51,7 +51,7 @@ try:
     stage_rows = conn.execute(
         """SELECT sr.position, sr.rider_url, r.name, r.nationality, r.team_name
            FROM stage_results sr
-           JOIN riders r ON r.rider_url = sr.rider_url
+           LEFT JOIN riders r ON r.rider_url = sr.rider_url
            WHERE sr.race_name = ? AND sr.stage_name = ?
            ORDER BY sr.position""",
         [selected_race, selected_stage],
