@@ -64,6 +64,8 @@ def render_header(account: dict) -> None:
             st.markdown("[🚪 Uitloggen](?logout=true)", unsafe_allow_html=True)
         else:
             if st.button("🚪 Uitloggen", key="btn_logout_header"):
+                for _k in [k for k in st.session_state if k.startswith("scores_stage_select_")]:
+                    del st.session_state[_k]
                 st.session_state.account = None
                 st.rerun()
 
