@@ -138,14 +138,22 @@ def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[str]:
     if not pcs_url:
         st.error(f"Geen ProCyclingStats URL gevonden voor {stage_name}. Stel de URL in via het etappe-overzicht.")
         return []
-    try:
-        scraper = cloudscraper.create_scraper()
-        response = scraper.get(pcs_url, timeout=15)
-        response.raise_for_status()
-        return _parse_pcs_results(response.text)
-    except Exception as e:
-        st.error(f"Ophalen van ProCyclingStats mislukt: {e}")
-        return []
+    browser_profiles = [
+        {'browser': 'chrome',  'platform': 'windows', 'mobile': False},
+        {'browser': 'firefox', 'platform': 'windows', 'mobile': False},
+        {'browser': 'chrome',  'platform': 'darwin',  'mobile': False},
+    ]
+    last_err = None
+    for profile in browser_profiles:
+        try:
+            scraper = cloudscraper.create_scraper(browser=profile)
+            response = scraper.get(pcs_url, timeout=15)
+            response.raise_for_status()
+            return _parse_pcs_results(response.text)
+        except Exception as e:
+            last_err = e
+    st.error(f"Ophalen van ProCyclingStats mislukt: {last_err}")
+    return []
 
 
 def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetch_key: str):
