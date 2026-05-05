@@ -225,7 +225,7 @@ def _render_results_section(race_name: str, stages: list, prefix: str):
         view_stage = st.selectbox("Etappe", racing_stage_names, key=f"{prefix}_view_stage")
         results = load_stage_results(DB_PATH, race_name, view_stage)
         if results:
-            st.dataframe(pd.DataFrame(results), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(results), hide_index=True, width="stretch")
         else:
             st.info(t("no_stage_results"))
 
@@ -251,7 +251,7 @@ def _render_stages_table(race_name: str, stages: list, finished: set, key_prefix
         },
         disabled=["Date", "Day", "Stage", "Route", "KM", "✅"],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         key=f"{key_prefix}_stages_editor",
     )
 

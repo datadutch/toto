@@ -41,7 +41,7 @@ try:
     if scores:
         df = pd.DataFrame(scores).sort_values("Total", ascending=False).reset_index(drop=True)
         df.index = df.index + 1
-        st.dataframe(df, height=len(df) * 35 + 41, use_container_width=True)
+        st.dataframe(df, height=len(df) * 35 + 41, width="stretch")
     else:
         st.info(t("no_scores_available"))
 except Exception as e:
