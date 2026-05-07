@@ -402,10 +402,10 @@ def init_races_table(db_path: str) -> None:
                     [race_name, pcs_url, deadline],
                 )
             else:
-                # Update existing race with new deadline and pcs_url
+                # Only backfill pcs_url if missing; never overwrite deadline
                 conn.execute(
-                    "UPDATE races SET deadline = ?, pcs_url = ? WHERE race_name = ?",
-                    [deadline, pcs_url, race_name],
+                    "UPDATE races SET pcs_url = ? WHERE race_name = ? AND pcs_url IS NULL",
+                    [pcs_url, race_name],
                 )
     finally:
         conn.close()
