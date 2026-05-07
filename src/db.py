@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS startlists (
 """
 
 RACE_SEEDS = [
-    ("Giro d'Italia", "2026-05-07 22:00:00", "https://www.procyclingstats.com/race/giro-ditalia/2026"),
+    ("Giro d'Italia", "2026-05-08 13:45:00", "https://www.procyclingstats.com/race/giro-ditalia/2026"),
     ("Tour de France", "2026-07-04 12:00:00", "https://www.procyclingstats.com/race/tour-de-france/2026"),
     ("Tour de Romandie", "2026-04-28 12:00:00", "https://www.procyclingstats.com/race/tour-de-romandie/2026"),
     ("Vuelta a España", "2026-08-22 12:00:00", "https://www.procyclingstats.com/race/vuelta-a-espana/2026"),
@@ -601,6 +601,8 @@ GIRO_2026_STAGES = [
     ("Giro d'Italia", "29/05", "Friday",    "Stage 19",      "Feltre - Alleghe (Piani di Pezzè)",       151.0),
     ("Giro d'Italia", "30/05", "Saturday",  "Stage 20",      "Gemona del Friuli 1976-2026 - Piancavallo", 199.0),
     ("Giro d'Italia", "31/05", "Sunday",    "Stage 21",      "Rome - Rome",                             131.0),
+    ("Giro d'Italia", "31/05", "Sunday",    "Stage 22",      "GC1",                             131.0),
+    ("Giro d'Italia", "31/05", "Sunday",    "Stage 23",      "GC2",                             131.0),
 ]
 
 TOUR_DE_ROMANDIE_2026_STAGES = [
