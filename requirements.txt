@@ -1,6 +1,6 @@
 procyclingstats
 cloudscraper
-duckdb
+duckdb==1.5.2
 streamlit
 python-dotenv
 mistralai==1.10.0
