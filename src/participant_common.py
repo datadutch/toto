@@ -107,14 +107,27 @@ def render_sidebar(account: dict, active_page: str) -> None:
 
     nav = st.sidebar.radio(
         "Navigatie",
-        options=["register", "scores"],
-        format_func=lambda x: "📝 Inschrijven" if x == "register" else "🏆 Scores",
-        index=0 if active_page == "register" else 1,
+        options=["register", "scores", "datapron"],
+        format_func=lambda x: (
+            "📝 Inschrijven" if x == "register"
+            else "🏆 Scores" if x == "scores"
+            else "📊 Datapron"
+        ),
+        index=(
+            0 if active_page == "register"
+            else 2 if active_page == "datapron"
+            else 1
+        ),
         label_visibility="collapsed",
         key="sidebar_nav",
     )
     if nav != active_page:
-        target = "pages/participant_register.py" if nav == "register" else _SCORES_SUBPAGES["totals"][1]
+        if nav == "register":
+            target = "pages/participant_register.py"
+        elif nav == "datapron":
+            target = "pages/datapron_start.py"
+        else:
+            target = _SCORES_SUBPAGES["totals"][1]
         st.switch_page(target)
 
     st.sidebar.markdown("---")
