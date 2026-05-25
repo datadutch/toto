@@ -93,7 +93,7 @@ if stage_rows:
         styled,
         hide_index=True,
         height=len(df) * 35 + 41,
-        use_container_width=True,
+        width="stretch",
         column_config={
             col_pos: st.column_config.TextColumn(label=col_pos, width="small"),
             col_sel: st.column_config.TextColumn(label=col_sel, width="small"),
