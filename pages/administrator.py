@@ -8,11 +8,12 @@ import cloudscraper
 from dotenv import load_dotenv
 from procyclingstats import Stage as PCSStage
 from src.db import (
+    _connect,
     init_fantasy_tables, load_fantasy_teams, load_fantasy_team_riders,
     init_stages_table, load_stages,
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
-    init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email, 
+    init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email,
     set_admin_status,
     save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
     update_stage_pcs_url,
@@ -929,6 +930,45 @@ with tab_settings:
                     hide_index=True,
                     width="stretch",
                 )
+
+    st.divider()
+    st.subheader("📥 Database export")
+
+    @st.cache_data(ttl=300)
+    def _build_excel_bytes(db_path: str) -> bytes:
+        import io
+        _tables = {
+            "riders":              "SELECT * FROM riders ORDER BY name",
+            "accounts":            "SELECT id, email, name, is_admin, created_at FROM accounts ORDER BY email",
+            "fantasy_teams":       "SELECT * FROM fantasy_teams ORDER BY race_name, created_at",
+            "fantasy_team_riders": "SELECT * FROM fantasy_team_riders ORDER BY team_id, slot",
+            "races":               "SELECT * FROM races ORDER BY deadline",
+            "stages":              "SELECT * FROM stages ORDER BY race_name, date",
+            "startlists":          "SELECT * FROM startlists ORDER BY race_name, rider_name",
+            "stage_results":       "SELECT * FROM stage_results ORDER BY race_name, stage_name, position",
+        }
+        buf = io.BytesIO()
+        conn = _connect(db_path)
+        try:
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                for sheet, query in _tables.items():
+                    try:
+                        conn.execute(query).df().to_excel(writer, sheet_name=sheet, index=False)
+                    except Exception:
+                        pass
+        finally:
+            conn.close()
+        buf.seek(0)
+        return buf.getvalue()
+
+    excel_bytes = _build_excel_bytes(DB_PATH)
+    st.download_button(
+        label="⬇️ Download als Excel",
+        data=excel_bytes,
+        file_name="toto_database_export.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="btn_download_excel",
+    )
 
 
 # ── Tab: Renners ──────────────────────────────────────────────────────────────
