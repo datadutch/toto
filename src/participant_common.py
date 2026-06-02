@@ -41,7 +41,8 @@ def setup_page(layout: str = "centered") -> dict:
         st.session_state.account = None
 
     if st.session_state.account is None:
-        st.rerun()
+        st.switch_page("participant.py")
+        st.stop()
 
     return st.session_state.account
 
