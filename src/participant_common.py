@@ -5,7 +5,7 @@ import unicodedata
 import streamlit as st
 from dotenv import load_dotenv
 from src.db import (
-    _connect, load_races, is_registration_open, update_account_name,
+    _connect, load_active_races, is_registration_open, update_account_name,
 )
 
 load_dotenv()
@@ -174,7 +174,7 @@ def render_name_change_modal(account: dict) -> None:
 
 def load_race_selector() -> tuple:
     """Race selectbox + deadline info. Returns (races, selected_race, race_info, registration_open)."""
-    races = load_races(DB_PATH)
+    races = load_active_races(DB_PATH)
     if not races:
         st.error("No races configured yet. Ask the administrator.")
         st.stop()

@@ -422,6 +422,42 @@ def load_races(db_path: str) -> list[dict]:
         conn.close()
 
 
+def load_active_races(db_path: str) -> list[dict]:
+    """Return races whose last non-rest-day stage date has not yet passed."""
+    from datetime import date
+    today = date.today()
+    year = today.year
+
+    conn = _connect(db_path, read_only=True)
+    try:
+        races = conn.execute(
+            "SELECT race_name, pcs_url, deadline FROM races ORDER BY deadline"
+        ).fetchall()
+
+        active = []
+        for race_name, pcs_url, deadline in races:
+            dates = conn.execute(
+                "SELECT date FROM stages WHERE race_name = ? AND stage_name != 'Rest Day'",
+                [race_name],
+            ).fetchall()
+
+            if not dates:
+                # No stages defined yet — include the race
+                active.append({"race_name": race_name, "pcs_url": pcs_url, "deadline": deadline})
+                continue
+
+            last = max(
+                date(year, int(d[0][3:5]), int(d[0][:2]))
+                for d in dates
+            )
+            if last >= today:
+                active.append({"race_name": race_name, "pcs_url": pcs_url, "deadline": deadline})
+
+        return active
+    finally:
+        conn.close()
+
+
 def update_deadline(db_path: str, race_name: str, deadline) -> None:
     conn = _connect(db_path)
     try:
