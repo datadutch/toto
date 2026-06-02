@@ -71,7 +71,6 @@ search_query = st.text_input(
 st.session_state.search_query = search_query
 
 # ── Startlist column ──────────────────────────────────────────────────────────
-st.markdown(f"#### 📋 {t('startlist')}")
 _norm_query = _normalize(search_query) if search_query else ""
 startlist_available = {
     label: url
