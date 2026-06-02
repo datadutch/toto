@@ -206,7 +206,7 @@ def _load_all_rider_rows() -> list:
 
 def load_riders(selected_race: str) -> tuple:
     """Load rider options for the race.
-    Returns (rider_options, url_to_label, url_to_norm, all_rows, startlist_urls).
+    Returns (rider_options, url_to_label, url_to_norm).
     rider_options contains only startlist riders (falls back to all riders if no startlist).
     """
     conn = _connect(DB_PATH, read_only=True)
@@ -242,4 +242,4 @@ def load_riders(selected_race: str) -> tuple:
             _label = f"{_name} ({_nat or '?'}) — {_team or '?'}" + (f" [{_nickname}]" if _nickname else "")
             url_to_label[_url] = _label
 
-    return rider_options, url_to_label, url_to_norm, all_rows, startlist_urls
+    return rider_options, url_to_label, url_to_norm
