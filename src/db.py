@@ -308,6 +308,20 @@ def update_account_name(db_path: str, account_id: int, new_name: str) -> bool:
         conn.close()
 
 
+def delete_account(db_path: str, account_id: int) -> bool:
+    """Delete an account and all associated fantasy teams. Returns True if deleted."""
+    conn = _connect(db_path)
+    try:
+        teams = conn.execute("SELECT id FROM fantasy_teams WHERE account_id = ?", [account_id]).fetchall()
+        for (team_id,) in teams:
+            conn.execute("DELETE FROM fantasy_team_riders WHERE team_id = ?", [team_id])
+        conn.execute("DELETE FROM fantasy_teams WHERE account_id = ?", [account_id])
+        result = conn.execute("DELETE FROM accounts WHERE id = ?", [account_id])
+        return result.rowcount > 0
+    finally:
+        conn.close()
+
+
 def load_fantasy_teams(db_path: str, race_name: str = None) -> list[dict]:
     conn = _connect(db_path, read_only=True)
     try:
