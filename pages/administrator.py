@@ -882,36 +882,36 @@ with tab_settings:
         if not all_accounts:
             st.info(t("no_accounts"))
         else:
-            accounts_df = pd.DataFrame([
-                {"Naam": acc_name or "—", "Email": acc_email, "Admin": "✅" if acc_is_admin == "yes" else "—"}
-                for _, acc_email, acc_name, acc_is_admin in all_accounts
-            ])
-            st.dataframe(accounts_df, hide_index=True, width="stretch")
-
-            st.divider()
-            account_labels = {f"{acc_name or acc_email} ({acc_email})": (acc_id, acc_email, acc_is_admin) for acc_id, acc_email, acc_name, acc_is_admin in all_accounts}
-            chosen_label = st.selectbox("Selecteer gebruiker", list(account_labels.keys()), key="user_action_select")
-            if chosen_label:
-                sel_id, sel_email, sel_is_admin = account_labels[chosen_label]
-                is_self = sel_id == current_account_id
-
-                col_admin, col_del = st.columns(2)
-                toggle_label = "Admin intrekken" if sel_is_admin == "yes" else "Maak admin"
-                if col_admin.button(
-                    f"👑 {toggle_label}",
-                    key="user_admin_toggle",
-                    disabled=is_self,
-                    help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
-                    use_container_width=True,
-                ):
-                    set_admin_status(DB_PATH, sel_email, "no" if sel_is_admin == "yes" else "yes")
-                    st.rerun()
-
-                with col_del.popover("🗑️ Verwijder gebruiker", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else None, use_container_width=True):
-                    st.warning(f"Verwijder **{chosen_label}** en alle bijbehorende teams?")
-                    if st.button("Ja, verwijderen", key="user_delete_confirm", type="primary"):
-                        delete_account(DB_PATH, sel_id)
+            _COLS = [2, 3, 1, 2, 1]
+            with st.container(border=True):
+                h1, h2, h3, h4, h5 = st.columns(_COLS)
+                h1.markdown("**Naam**")
+                h2.markdown("**Email**")
+                h3.markdown("**Admin**")
+                h4.markdown("**Rechten**")
+                h5.markdown("**&nbsp;**", unsafe_allow_html=True)
+                st.divider()
+                for acc_id, acc_email, acc_name, acc_is_admin in all_accounts:
+                    c1, c2, c3, c4, c5 = st.columns(_COLS)
+                    c1.write(acc_name or "—")
+                    c2.write(acc_email)
+                    c3.write("✅" if acc_is_admin == "yes" else "—")
+                    is_self = acc_id == current_account_id
+                    toggle_label = "Intrekken" if acc_is_admin == "yes" else "Maak admin"
+                    if c4.button(
+                        toggle_label,
+                        key=f"admin_toggle_{acc_id}",
+                        disabled=is_self,
+                        help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
+                        use_container_width=True,
+                    ):
+                        set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
                         st.rerun()
+                    with c5.popover("🗑️", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else "Verwijder gebruiker"):
+                        st.warning(f"Verwijder **{acc_name or acc_email}** en alle bijbehorende teams?")
+                        if st.button("Ja, verwijderen", key=f"del_confirm_{acc_id}", type="primary"):
+                            delete_account(DB_PATH, acc_id)
+                            st.rerun()
 
     # ── Sub-tab: Teams ────────────────────────────────────────────────────────
     with subtab_teams:
