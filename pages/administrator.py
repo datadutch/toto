@@ -863,13 +863,12 @@ with tab_scores:
                         else:
                             st.info(t("no_team_riders"))
 
-# ── Tab: Teams ───────────────────────────────────────────────────────────────
+# ── Tab: Beheer ──────────────────────────────────────────────────────────────
 with tab_settings:
-    st.subheader(f"👥 {t('teams')}")
-    
-    # ── Admin User Management ─────────────────────────────────────────────
-    if st.session_state.account.get("is_admin") == "yes":
-        st.markdown("---")
+    subtab_users, subtab_teams, subtab_export = st.tabs(["👑 Gebruikers", "👥 Teams", "📥 Export"])
+
+    # ── Sub-tab: Gebruikers ───────────────────────────────────────────────────
+    with subtab_users:
         st.subheader(f"👑 {t('admin_users')}")
 
         conn = get_connection()
@@ -881,109 +880,112 @@ with tab_settings:
         current_account_id = st.session_state.account.get("id")
 
         if all_accounts:
-            _hcol_name, _hcol_email, _hcol_status, _hcol_admin, _hcol_del = st.columns([2, 3, 1, 2, 1])
-            _hcol_name.markdown("**Naam**")
-            _hcol_email.markdown("**Email**")
-            _hcol_status.markdown("**Admin**")
+            with st.container(border=True):
+                _hcol_name, _hcol_email, _hcol_status, _hcol_admin, _hcol_del = st.columns([2, 3, 1, 2, 1])
+                _hcol_name.markdown("**Naam**")
+                _hcol_email.markdown("**Email**")
+                _hcol_status.markdown("**Admin**")
+                st.divider()
 
-            for acc_id, acc_email, acc_name, acc_is_admin in all_accounts:
-                col_name, col_email, col_status, col_admin_btn, col_del_btn = st.columns([2, 3, 1, 2, 1])
-                col_name.write(acc_name or "—")
-                col_email.write(acc_email)
-                col_status.write("✅" if acc_is_admin == "yes" else "—")
+                for acc_id, acc_email, acc_name, acc_is_admin in all_accounts:
+                    col_name, col_email, col_status, col_admin_btn, col_del_btn = st.columns([2, 3, 1, 2, 1])
+                    col_name.write(acc_name or "—")
+                    col_email.write(acc_email)
+                    col_status.write("✅" if acc_is_admin == "yes" else "—")
 
-                is_self = acc_id == current_account_id
-                toggle_label = "Admin intrekken" if acc_is_admin == "yes" else "Maak admin"
-                if col_admin_btn.button(
-                    toggle_label,
-                    key=f"admin_toggle_{acc_id}",
-                    disabled=is_self,
-                    help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
-                    use_container_width=True,
-                ):
-                    set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
-                    st.rerun()
-
-                with col_del_btn.popover("🗑️", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else "Verwijder gebruiker"):
-                    st.warning(f"Verwijder **{acc_name or acc_email}** en alle bijbehorende teams?")
-                    if st.button("Ja, verwijderen", key=f"del_account_confirm_{acc_id}", type="primary"):
-                        delete_account(DB_PATH, acc_id)
+                    is_self = acc_id == current_account_id
+                    toggle_label = "Admin intrekken" if acc_is_admin == "yes" else "Maak admin"
+                    if col_admin_btn.button(
+                        toggle_label,
+                        key=f"admin_toggle_{acc_id}",
+                        disabled=is_self,
+                        help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
+                        use_container_width=True,
+                    ):
+                        set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
                         st.rerun()
+
+                    with col_del_btn.popover("🗑️", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else "Verwijder gebruiker"):
+                        st.warning(f"Verwijder **{acc_name or acc_email}** en alle bijbehorende teams?")
+                        if st.button("Ja, verwijderen", key=f"del_account_confirm_{acc_id}", type="primary"):
+                            delete_account(DB_PATH, acc_id)
+                            st.rerun()
         else:
             st.info(t("no_accounts"))
 
-        st.markdown("---")
-    
-    races_for_settings = load_races(DB_PATH)
-    # Sort by closest deadline (nearest date first)
-    from datetime import datetime
-    races_for_settings.sort(key=lambda r: abs((r["deadline"] - datetime.now()).total_seconds()) if r["deadline"] else float('inf'))
-    races_for_settings_names = [r["race_name"] for r in races_for_settings]
-    settings_race = st.selectbox(t("select_race"), races_for_settings_names, key="settings_race_select")
+    # ── Sub-tab: Teams ────────────────────────────────────────────────────────
+    with subtab_teams:
+        st.subheader(f"👥 {t('teams')}")
 
-    st.markdown(f"#### {t('registered_teams')}")
-    teams_all = load_fantasy_teams(DB_PATH, settings_race)
-    if not teams_all:
-        st.info(t("no_teams"))
-    else:
-        # Show summary table of all teams
-        summary_df = pd.DataFrame([
-            {t("name"): team["team_name"], t("manager"): team["manager_name"], t("email_address"): team["email"] or "", t("registered"): team["created_at"]}
-            for team in teams_all
-        ])
-        st.dataframe(summary_df, hide_index=True, width="stretch")
+        from datetime import datetime as _dt
+        races_for_settings = load_races(DB_PATH)
+        races_for_settings.sort(key=lambda r: abs((r["deadline"] - _dt.now()).total_seconds()) if r["deadline"] else float('inf'))
+        races_for_settings_names = [r["race_name"] for r in races_for_settings]
+        settings_race = st.selectbox(t("select_race"), races_for_settings_names, key="settings_race_select")
 
-        st.divider()
-        team_labels_all = {f"{team['team_name']} (by {team['manager_name']})": team["id"] for team in teams_all}
-        chosen_team = st.selectbox(t("view_team_riders"), list(team_labels_all.keys()), key="settings_team_select")
-        if chosen_team:
-            chosen_id = team_labels_all[chosen_team]
-            team_riders = load_fantasy_team_riders(DB_PATH, chosen_id)
-            if team_riders:
-                st.dataframe(
-                    pd.DataFrame(team_riders).rename(columns={t("rider"): "Rider", "nationality": t("nat"), "team": t("team")}),
-                    hide_index=True,
-                    width="stretch",
-                )
+        st.markdown(f"#### {t('registered_teams')}")
+        teams_all = load_fantasy_teams(DB_PATH, settings_race)
+        if not teams_all:
+            st.info(t("no_teams"))
+        else:
+            summary_df = pd.DataFrame([
+                {t("name"): team["team_name"], t("manager"): team["manager_name"], t("email_address"): team["email"] or "", t("registered"): team["created_at"]}
+                for team in teams_all
+            ])
+            st.dataframe(summary_df, hide_index=True, width="stretch")
 
-    st.divider()
-    st.subheader("📥 Database export")
+            st.divider()
+            team_labels_all = {f"{team['team_name']} (by {team['manager_name']})": team["id"] for team in teams_all}
+            chosen_team = st.selectbox(t("view_team_riders"), list(team_labels_all.keys()), key="settings_team_select")
+            if chosen_team:
+                chosen_id = team_labels_all[chosen_team]
+                team_riders = load_fantasy_team_riders(DB_PATH, chosen_id)
+                if team_riders:
+                    st.dataframe(
+                        pd.DataFrame(team_riders).rename(columns={t("rider"): "Rider", "nationality": t("nat"), "team": t("team")}),
+                        hide_index=True,
+                        width="stretch",
+                    )
 
-    @st.cache_data(ttl=300)
-    def _build_excel_bytes(db_path: str) -> bytes:
-        import io
-        _tables = {
-            "riders":              "SELECT * FROM riders ORDER BY name",
-            "accounts":            "SELECT id, email, name, is_admin, created_at FROM accounts ORDER BY email",
-            "fantasy_teams":       "SELECT * FROM fantasy_teams ORDER BY race_name, created_at",
-            "fantasy_team_riders": "SELECT * FROM fantasy_team_riders ORDER BY team_id, slot",
-            "races":               "SELECT * FROM races ORDER BY deadline",
-            "stages":              "SELECT * FROM stages ORDER BY race_name, date",
-            "startlists":          "SELECT * FROM startlists ORDER BY race_name, rider_name",
-            "stage_results":       "SELECT * FROM stage_results ORDER BY race_name, stage_name, position",
-        }
-        buf = io.BytesIO()
-        conn = _connect(db_path)
-        try:
-            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-                for sheet, query in _tables.items():
-                    try:
-                        conn.execute(query).df().to_excel(writer, sheet_name=sheet, index=False)
-                    except Exception:
-                        pass
-        finally:
-            conn.close()
-        buf.seek(0)
-        return buf.getvalue()
+    # ── Sub-tab: Export ───────────────────────────────────────────────────────
+    with subtab_export:
+        st.subheader("📥 Database export")
 
-    excel_bytes = _build_excel_bytes(DB_PATH)
-    st.download_button(
-        label="⬇️ Download als Excel",
-        data=excel_bytes,
-        file_name="toto_database_export.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="btn_download_excel",
-    )
+        @st.cache_data(ttl=300)
+        def _build_excel_bytes(db_path: str) -> bytes:
+            import io
+            _tables = {
+                "riders":              "SELECT * FROM riders ORDER BY name",
+                "accounts":            "SELECT id, email, name, is_admin, created_at FROM accounts ORDER BY email",
+                "fantasy_teams":       "SELECT * FROM fantasy_teams ORDER BY race_name, created_at",
+                "fantasy_team_riders": "SELECT * FROM fantasy_team_riders ORDER BY team_id, slot",
+                "races":               "SELECT * FROM races ORDER BY deadline",
+                "stages":              "SELECT * FROM stages ORDER BY race_name, date",
+                "startlists":          "SELECT * FROM startlists ORDER BY race_name, rider_name",
+                "stage_results":       "SELECT * FROM stage_results ORDER BY race_name, stage_name, position",
+            }
+            buf = io.BytesIO()
+            conn = _connect(db_path)
+            try:
+                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                    for sheet, query in _tables.items():
+                        try:
+                            conn.execute(query).df().to_excel(writer, sheet_name=sheet, index=False)
+                        except Exception:
+                            pass
+            finally:
+                conn.close()
+            buf.seek(0)
+            return buf.getvalue()
+
+        excel_bytes = _build_excel_bytes(DB_PATH)
+        st.download_button(
+            label="⬇️ Download als Excel",
+            data=excel_bytes,
+            file_name="toto_database_export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_download_excel",
+        )
 
 
 # ── Tab: Renners ──────────────────────────────────────────────────────────────
