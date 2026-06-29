@@ -51,14 +51,6 @@ def _get_supabase():
         st.session_state._supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     return st.session_state._supabase
 
-# ── Detect post-verification redirect ────────────────────────────────────────
-_qp = st.query_params
-if _qp.get("verified") == "1" and not st.session_state.get("email_confirmed"):
-    st.session_state["email_confirmed"] = True
-    st.session_state["newly_verified"] = True
-    st.query_params.clear()
-    st.rerun()
-
 # ── Auto-login via environment variable ──────────────────────────────────────
 if st.session_state.account is None:
     env_auto_login_email = os.getenv("PARTICIPANT_AUTO_LOGIN_EMAIL")
@@ -177,49 +169,15 @@ def _show_email_step():
     if st.button(t("participant_send_otp"), type="primary", use_container_width=True):
         try:
             sb = _get_supabase()
-            is_known_user = get_account_by_email(DB_PATH, email_input.strip()) is not None
-            newly_verified = st.session_state.pop("newly_verified", False)
             sb.auth.sign_in_with_otp({
                 "email": email_input.strip(),
-                "options": {
-                    "should_create_user": True,
-                    "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
-                },
+                "options": {"should_create_user": True},
             })
-            if is_known_user or newly_verified:
-                st.session_state.otp_email = email_input.strip()
-            else:
-                st.session_state.confirm_email = email_input.strip()
+            st.session_state.otp_email = email_input.strip()
             st.rerun()
         except Exception as e:
             st.error(f"Kon geen code versturen: {e}")
 
-    st.stop()
-
-
-def _show_confirm_email_step():
-    """New user: confirmation email sent, waiting for them to click the link."""
-    email = st.session_state.confirm_email
-    st.info(t("participant_confirm_sent").format(email=email))
-    st.markdown(t("participant_confirm_instructions"))
-    st.divider()
-    col_retry, col_back = st.columns(2)
-    if col_retry.button(t("participant_confirm_resend"), use_container_width=True):
-        try:
-            sb = _get_supabase()
-            sb.auth.sign_in_with_otp({
-                "email": email,
-                "options": {
-                    "should_create_user": True,
-                    "email_redirect_to": "https://stamperstotogalore.streamlit.app?verified=1",
-                },
-            })
-            st.success(t("participant_confirm_resent"))
-        except Exception as e:
-            st.error(f"{t('participant_otp_send_error')} {e}")
-    if col_back.button(t("participant_back"), use_container_width=True):
-        st.session_state.pop("confirm_email", None)
-        st.rerun()
     st.stop()
 
 
@@ -232,9 +190,6 @@ def show_login_form():
         st.title(f"🚴 {t('participant_welcome')}")
 
     st.subheader(t("participant_login_register"))
-
-    if st.session_state.pop("email_confirmed", False):
-        st.success(t("participant_email_confirmed"))
 
     st.sidebar.selectbox(
         t("language"),
@@ -250,8 +205,6 @@ def show_login_form():
         _show_name_form()
     elif st.session_state.get("otp_email"):
         _show_otp_step()
-    elif st.session_state.get("confirm_email"):
-        _show_confirm_email_step()
     else:
         _show_email_step()
 
