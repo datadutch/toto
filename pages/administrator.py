@@ -14,7 +14,7 @@ from src.db import (
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email,
-    set_admin_status,
+    set_admin_status, delete_account,
     save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
     update_stage_pcs_url,
 )
@@ -871,32 +871,47 @@ with tab_settings:
     if st.session_state.account.get("is_admin") == "yes":
         st.markdown("---")
         st.subheader(f"👑 {t('admin_users')}")
-        
-        # List all accounts with admin status
+
         conn = get_connection()
-        all_accounts = conn.execute("SELECT email, name, is_admin FROM accounts ORDER BY is_admin DESC, email").fetchall()
+        all_accounts = conn.execute(
+            "SELECT id, email, name, is_admin FROM accounts ORDER BY is_admin DESC, name"
+        ).fetchall()
         conn.close()
-        
+
+        current_account_id = st.session_state.account.get("id")
+
         if all_accounts:
-            df_accounts = pd.DataFrame(all_accounts, columns=[t("email"), t("name"), "Admin"])
-            st.dataframe(df_accounts, hide_index=True, width="stretch")
-            
-            st.markdown("---")
-            st.subheader(t("admin_status_change"))
-            
-            email_to_update = st.text_input(t("email_address"), placeholder="e.g. user@example.com", key="admin_email_update")
-            if email_to_update:
-                new_status = st.radio(t("admin_status"), ["yes", "no"], key="admin_status_choice")
-                if st.button(t("save_rider"), key="save_admin_status"):
-                    success = set_admin_status(DB_PATH, email_to_update, new_status)
-                    if success:
-                        st.success(f"{t('admin_status_change')} {email_to_update} naar '{new_status}'")
+            _hcol_name, _hcol_email, _hcol_status, _hcol_admin, _hcol_del = st.columns([2, 3, 1, 2, 1])
+            _hcol_name.markdown("**Naam**")
+            _hcol_email.markdown("**Email**")
+            _hcol_status.markdown("**Admin**")
+
+            for acc_id, acc_email, acc_name, acc_is_admin in all_accounts:
+                col_name, col_email, col_status, col_admin_btn, col_del_btn = st.columns([2, 3, 1, 2, 1])
+                col_name.write(acc_name or "—")
+                col_email.write(acc_email)
+                col_status.write("✅" if acc_is_admin == "yes" else "—")
+
+                is_self = acc_id == current_account_id
+                toggle_label = "Admin intrekken" if acc_is_admin == "yes" else "Maak admin"
+                if col_admin_btn.button(
+                    toggle_label,
+                    key=f"admin_toggle_{acc_id}",
+                    disabled=is_self,
+                    help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
+                    use_container_width=True,
+                ):
+                    set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
+                    st.rerun()
+
+                with col_del_btn.popover("🗑️", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else "Verwijder gebruiker"):
+                    st.warning(f"Verwijder **{acc_name or acc_email}** en alle bijbehorende teams?")
+                    if st.button("Ja, verwijderen", key=f"del_account_confirm_{acc_id}", type="primary"):
+                        delete_account(DB_PATH, acc_id)
                         st.rerun()
-                    else:
-                        st.error(f"Account not found: {email_to_update}")
         else:
             st.info(t("no_accounts"))
-        
+
         st.markdown("---")
     
     races_for_settings = load_races(DB_PATH)
