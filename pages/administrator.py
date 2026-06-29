@@ -882,9 +882,18 @@ with tab_settings:
         if not all_accounts:
             st.info(t("no_accounts"))
         else:
+            user_filter = st.text_input("🔍 Filter op naam of email", placeholder="Zoek gebruiker...", key="user_filter")
+            _q = user_filter.strip().lower()
+            filtered_accounts = [
+                acc for acc in all_accounts
+                if not _q or _q in (acc[2] or "").lower() or _q in acc[1].lower()
+            ]
+
+            st.caption(f"{len(filtered_accounts)} van {len(all_accounts)} gebruikers")
+
             users_df = pd.DataFrame([
                 {"Naam": acc_name or "—", "Email": acc_email, "Admin": "✅" if acc_is_admin == "yes" else "—"}
-                for _, acc_email, acc_name, acc_is_admin in all_accounts
+                for _, acc_email, acc_name, acc_is_admin in filtered_accounts
             ])
 
             event = st.dataframe(
@@ -898,7 +907,7 @@ with tab_settings:
             selected_rows = event.selection.rows
             if selected_rows:
                 i = selected_rows[0]
-                acc_id, acc_email, acc_name, acc_is_admin = all_accounts[i]
+                acc_id, acc_email, acc_name, acc_is_admin = filtered_accounts[i]
                 is_self = acc_id == current_account_id
                 st.divider()
                 col_info, col_admin, col_del = st.columns([3, 2, 2])
