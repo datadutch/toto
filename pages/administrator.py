@@ -882,36 +882,55 @@ with tab_settings:
         if not all_accounts:
             st.info(t("no_accounts"))
         else:
-            _COLS = [2, 3, 1, 2, 1]
-            with st.container(border=True):
-                h1, h2, h3, h4, h5 = st.columns(_COLS)
-                h1.markdown("**Naam**")
-                h2.markdown("**Email**")
-                h3.markdown("**Admin**")
-                h4.markdown("**Rechten**")
-                h5.markdown("**&nbsp;**", unsafe_allow_html=True)
-                st.divider()
-                for acc_id, acc_email, acc_name, acc_is_admin in all_accounts:
-                    c1, c2, c3, c4, c5 = st.columns(_COLS)
-                    c1.write(acc_name or "—")
-                    c2.write(acc_email)
-                    c3.write("✅" if acc_is_admin == "yes" else "—")
-                    is_self = acc_id == current_account_id
-                    toggle_label = "Intrekken" if acc_is_admin == "yes" else "Maak admin"
-                    if c4.button(
-                        toggle_label,
-                        key=f"admin_toggle_{acc_id}",
-                        disabled=is_self,
-                        help="Je kunt je eigen adminrechten niet wijzigen" if is_self else None,
-                        use_container_width=True,
-                    ):
-                        set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
-                        st.rerun()
-                    with c5.popover("🗑️", disabled=is_self, help="Je kunt je eigen account niet verwijderen" if is_self else "Verwijder gebruiker"):
-                        st.warning(f"Verwijder **{acc_name or acc_email}** en alle bijbehorende teams?")
-                        if st.button("Ja, verwijderen", key=f"del_confirm_{acc_id}", type="primary"):
-                            delete_account(DB_PATH, acc_id)
-                            st.rerun()
+            users_df = pd.DataFrame([
+                {
+                    "Naam":    acc_name or "—",
+                    "Email":   acc_email,
+                    "Admin":   "✅" if acc_is_admin == "yes" else "—",
+                    "Rechten": "Intrekken" if acc_is_admin == "yes" else "Maak admin",
+                    "🗑️":     "Verwijderen",
+                }
+                for _, acc_email, acc_name, acc_is_admin in all_accounts
+            ])
+
+            edited = st.data_editor(
+                users_df,
+                column_config={
+                    "Naam":    st.column_config.TextColumn(disabled=True),
+                    "Email":   st.column_config.TextColumn(disabled=True),
+                    "Admin":   st.column_config.TextColumn(disabled=True, width="small"),
+                    "Rechten": st.column_config.ButtonColumn("Rechten", width="medium"),
+                    "🗑️":     st.column_config.ButtonColumn("🗑️", width="small"),
+                },
+                hide_index=True,
+                width="stretch",
+                key="users_table",
+            )
+
+            for i, row in edited.iterrows():
+                acc_id, acc_email, acc_name, acc_is_admin = all_accounts[i]
+                if acc_id == current_account_id:
+                    continue
+                if row["Rechten"]:
+                    set_admin_status(DB_PATH, acc_email, "no" if acc_is_admin == "yes" else "yes")
+                    st.rerun()
+                if row["🗑️"]:
+                    st.session_state["pending_delete_id"] = acc_id
+                    st.session_state["pending_delete_name"] = acc_name or acc_email
+                    st.rerun()
+
+            if st.session_state.get("pending_delete_id"):
+                del_name = st.session_state["pending_delete_name"]
+                st.warning(f"Weet je zeker dat je **{del_name}** wilt verwijderen (inclusief alle teams)?")
+                col_yes, col_no = st.columns(2)
+                if col_yes.button("Ja, verwijderen", type="primary", key="confirm_delete_yes", use_container_width=True):
+                    delete_account(DB_PATH, st.session_state.pop("pending_delete_id"))
+                    st.session_state.pop("pending_delete_name", None)
+                    st.rerun()
+                if col_no.button("Annuleren", key="confirm_delete_no", use_container_width=True):
+                    st.session_state.pop("pending_delete_id", None)
+                    st.session_state.pop("pending_delete_name", None)
+                    st.rerun()
 
     # ── Sub-tab: Teams ────────────────────────────────────────────────────────
     with subtab_teams:
