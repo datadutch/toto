@@ -14,7 +14,7 @@ from src.db import (
     init_stage_results_table, save_stage_results, delete_stage_results, load_stage_results, stages_with_results,
     calculate_scores, calculate_stage_breakdown,
     init_races_table, load_races, update_deadline, init_accounts_table, init_admin_accounts, get_account_by_email,
-    set_admin_status, delete_account,
+    set_admin_status, delete_account, init_pcs_urls,
     save_rider, delete_rider, init_startlist_table, save_startlist, load_startlist, get_startlist_rider_names,
     update_stage_pcs_url,
 )
@@ -131,29 +131,67 @@ def _parse_pcs_results(html: str) -> list[str]:
     return [url for _, url in results]
 
 
+_PCS_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Cache-Control": "max-age=0",
+}
+
+
 def _fetch_top_15_from_pcs(race_name: str, stage_name: str) -> list[str]:
     """Fetch top 15 riders from ProCyclingStats for the given race/stage."""
+    import time
+    import requests as _requests
+
     stages = load_stages(DB_PATH, race_name)
     stage = next((s for s in stages if s["Stage"] == stage_name), None)
     pcs_url = stage.get("pcs_url") if stage else None
     if not pcs_url:
         st.error(f"Geen ProCyclingStats URL gevonden voor {stage_name}. Stel de URL in via het etappe-overzicht.")
         return []
+
+    # Attempt 1: requests session — haal eerst de homepage op voor cookies
+    try:
+        session = _requests.Session()
+        session.headers.update(_PCS_HEADERS)
+        session.get("https://www.procyclingstats.com/", timeout=10)
+        time.sleep(0.5)
+        resp = session.get(pcs_url, timeout=15)
+        resp.raise_for_status()
+        result = _parse_pcs_results(resp.text)
+        if result:
+            return result
+    except Exception:
+        pass
+
+    # Attempt 2: cloudscraper met meerdere browser-profielen
     browser_profiles = [
-        {'browser': 'chrome',  'platform': 'windows', 'mobile': False},
-        {'browser': 'firefox', 'platform': 'windows', 'mobile': False},
-        {'browser': 'chrome',  'platform': 'darwin',  'mobile': False},
+        {"browser": "chrome",  "platform": "windows", "mobile": False},
+        {"browser": "firefox", "platform": "windows", "mobile": False},
+        {"browser": "chrome",  "platform": "darwin",  "mobile": False},
     ]
     last_err = None
     for profile in browser_profiles:
         try:
             scraper = cloudscraper.create_scraper(browser=profile)
-            response = scraper.get(pcs_url, timeout=15)
-            response.raise_for_status()
-            return _parse_pcs_results(response.text)
+            scraper.headers.update(_PCS_HEADERS)
+            resp = scraper.get(pcs_url, timeout=15)
+            resp.raise_for_status()
+            result = _parse_pcs_results(resp.text)
+            if result:
+                return result
         except Exception as e:
             last_err = e
-    st.error(f"Ophalen van ProCyclingStats mislukt: {last_err}")
+            time.sleep(1)
+
+    st.error(
+        f"Ophalen van ProCyclingStats mislukt (403 — server blokkeert automatisch ophalen). "
+        f"Voer de uitslag handmatig in via de dropdowns hieronder. **Fout:** {last_err}"
+    )
     return []
 
 
@@ -164,7 +202,8 @@ def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetc
     pcs_url = stage.get("pcs_url") if stage else None
 
     if pcs_url:
-        if st.button(f"🌐 {t('fetch_pcs')}", key=fetch_key):
+        col_fetch, col_paste = st.columns(2)
+        if col_fetch.button(f"🌐 {t('fetch_pcs')}", key=fetch_key, use_container_width=True):
             with st.spinner(t("fetching")):
                 riders = _fetch_top_15_from_pcs(race_name, stage_name)
                 if riders:
@@ -175,8 +214,22 @@ def _render_pcs_fetch_button(race_name: str, stage_name: str, stages: list, fetc
                     st.session_state[f"{prefix}_subtab"] = "view"
                     st.success(f"✓ {t('fetched_saved')} {len(riders)} {t('riders')} {stage_name}")
                     st.rerun()
-                else:
-                    st.warning(t("no_results_fetched"))
+        with col_paste.popover("📋 Plak HTML", use_container_width=True):
+            st.caption(f"Open [{pcs_url}]({pcs_url}) in je browser, druk op **Ctrl+U** (paginabron) en plak de volledige HTML hieronder.")
+            pasted_html = st.text_area("HTML van PCS pagina", height=120, key=f"{fetch_key}_html_paste", placeholder="<!DOCTYPE html>...")
+            if st.button("Verwerk HTML", key=f"{fetch_key}_html_save", type="primary"):
+                if pasted_html.strip():
+                    riders = _parse_pcs_results(pasted_html)
+                    if riders:
+                        save_stage_results(DB_PATH, race_name, stage_name, riders)
+                        st.session_state.pop(f"results_{prefix}_{stage_name}", None)
+                        for _i in range(15):
+                            st.session_state.pop(f"{prefix}_pos_{_i}_{stage_name}", None)
+                        st.session_state[f"{prefix}_subtab"] = "view"
+                        st.success(f"✓ {len(riders)} renners verwerkt uit geplakte HTML.")
+                        st.rerun()
+                    else:
+                        st.error("Geen resultaten gevonden in de HTML. Controleer of je de juiste pagina hebt geplakt.")
     else:
         with st.popover(f"🔗 {t('add_pcs_url')}", use_container_width=True):
             new_url = st.text_input("ProCyclingStats URL", placeholder="https://www.procyclingstats.com/race/...", key=f"{fetch_key}_url_input")
@@ -395,6 +448,7 @@ except Exception:
 
 init_fantasy_tables(DB_PATH)
 init_stages_table(DB_PATH)
+init_pcs_urls(DB_PATH)
 init_stage_results_table(DB_PATH)
 init_races_table(DB_PATH)
 init_accounts_table(DB_PATH)

@@ -790,6 +790,36 @@ def update_stage_pcs_url(db_path: str, race_name: str, stage_name: str, pcs_url:
         conn.close()
 
 
+def init_pcs_urls(db_path: str) -> None:
+    """Auto-fill PCS result URLs for stages that don't have one yet."""
+    import re
+    _SLUGS = {
+        "Giro d'Italia":    "giro-ditalia",
+        "Tour de France":   "tour-de-france",
+        "Tour de Romandie": "tour-de-romandie",
+        "Vuelta a España":  "vuelta-a-espana",
+    }
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT race_name, stage_name FROM stages WHERE pcs_url IS NULL AND stage_name != 'Rest Day'"
+        ).fetchall()
+        for race_name, stage_name in rows:
+            slug = _SLUGS.get(race_name)
+            if not slug:
+                continue
+            m = re.match(r"Stage\s+(\d+)", stage_name)
+            if not m:
+                continue
+            pcs_url = f"https://www.procyclingstats.com/race/{slug}/2026/stage-{m.group(1)}"
+            conn.execute(
+                "UPDATE stages SET pcs_url = ? WHERE race_name = ? AND stage_name = ?",
+                [pcs_url, race_name, stage_name],
+            )
+    finally:
+        conn.close()
+
+
 # ── Stage results ─────────────────────────────────────────────────────────────
 
 CREATE_STAGE_RESULTS_SQL = """
